@@ -185,37 +185,47 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              children: [
-                _header(context),
-                const SizedBox(height: 8),
-                ConnectionCard(
-                  connected: _connected,
-                  busy: _busy,
-                  productName: _service.config?.productName ?? '',
-                  statusMessage: _statusMessage,
-                  onConnect: _connect,
-                  onDisconnect: _disconnect,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: Column(
+                      // padding: const EdgeInsets.symmetric(vertical: 24),
+                      children: [
+                        _header(context),
+                        const SizedBox(height: 8),
+                        ConnectionCard(
+                          connected: _connected,
+                          busy: _busy,
+                          productName: _service.config?.productName ?? '',
+                          statusMessage: _statusMessage,
+                          onConnect: _connect,
+                          onDisconnect: _disconnect,
+                        ),
+                        _dpiCard(context),
+                        _performanceCard(context),
+                        _powerCard(context),
+                      ],
+                    ),
+                  ),
                 ),
-                _dpiCard(context),
-                _performanceCard(context),
-                _powerCard(context),
-                ApplyBar(
-                  connected: _connected,
-                  busy: _busy,
-                  onApply: _apply,
-                  onReset: _reset,
-                  onSaveProfile: _saveProfile,
-                  onLoadProfile: _loadProfile,
-                ),
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
-          ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: ApplyBar(
+                connected: _connected,
+                busy: _busy,
+                onApply: _apply,
+                onReset: _reset,
+                onSaveProfile: _saveProfile,
+                onLoadProfile: _loadProfile,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -161,12 +161,8 @@
           <input type="number" id="sleep" min="0.5" max="30" step="0.5" value="2">
         </div>
         <div class="field">
-          <label>Deep sleep (minutes — only 10 / 25 / 60 verified)</label>
-          <select id="deep">
-            <option value="10" selected>10 min</option>
-            <option value="25">25 min</option>
-            <option value="60">60 min</option>
-          </select>
+          <label>Deep sleep (minutes)</label>
+          <input type="number" id="deep" min="1" max="60" step="1" value="10">
         </div>
         <div class="field">
           <label>Key response time (ms)</label>
@@ -183,7 +179,12 @@
       <button id="resetBtn">Reset to defaults</button>
       <button id="saveBtn">Save config</button>
       <button id="loadBtn">Load config</button>
+      <button id="copyCmd">Copy x3ctl.py command</button>
       <input type="file" id="loadFile" accept="application/json" hidden>
+      <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;cursor:pointer">
+        <span class="switch"><input type="checkbox" id="asOutput"><span class="slider"></span></span>
+        output-report fallback
+      </label>
     </div>
     <div class="logbox" id="log"></div>
   </div>
@@ -199,8 +200,15 @@ const RID_CFG = 0x04, RID_POWER = 0x05, RID_POLL = 0x06;
 
 /* report 0x04 (51 B) */
 const O_LOD=2, O_RIPPLE=3, O_ANGLE=5, O_MOTION=6, O_DPILO=7, O_DPIHI=15, O_ACTIVE=23, O_CHKHI=49, O_CHKLO=50;
-const POLL_CODE = { 1000:0x01, 500:0x02, 250:0x03, 125:0x04 };   // 250/125 assumed
-const DEEP_MAP = { 10:[0x03,0xa8,0x01], 25:[0x13,0x98,0x01], 60:[0x33,0xc8,0x02] };
+const POLL_CODE = { 1000:0x01, 500:0x02, 250:0x04, 125:0x08 };   // code = 1000 / Hz
+
+/* deep sleep stepped encoding: value = (n<<4)|8; n = deep+48 (<=15) / +288 (16-30) / +768 (>30) */
+function deepBytes(deep) {
+  const d = Math.min(60, Math.max(1, Math.round(deep)));
+  const n = d <= 15 ? d + 48 : d <= 30 ? d + 288 : d + 768;
+  const v = (n << 4) | 8;
+  return [(v >> 8) & 0xff, v & 0xff, d <= 30 ? 1 : 2];
+}
 
 /* baseline payloads (captured, verified) */
 const BASE_04 = [
@@ -266,7 +274,7 @@ function build05() {
   const p = BASE_05.slice();
   p[8] = Math.round(state.sleep * 2);
   p[9] = Math.round(state.key / 2);
-  const d = DEEP_MAP[state.deep] || DEEP_MAP[10];
+  const d = deepBytes(state.deep);
   p[3] = d[0]; p[4] = d[1]; p[10] = d[2];
   p[11] = (sum(p.slice(0, 10)) + 0xF0) & 0xff;
   return p;
@@ -330,6 +338,29 @@ function renderControls() {
 }
 
 /* ============================ connection ============================ */
+function rsize(r) {
+  try { return Math.round((r.items || []).reduce((a, it) => a + (it.reportSize || 0) * (it.reportCount || 0), 0) / 8); }
+  catch (e) { return null; }
+}
+function dumpCollections() {
+  const coll = device.collections || [];
+  if (!coll.length) { log("WebHID exposes NO collections for this device.", "warn"); return; }
+  log(`WebHID collections (${coll.length}):`, "");
+  coll.forEach((c, i) => {
+    const f = (c.featureReports || []).map(r => `#${hex(r.reportId)}${rsize(r) != null ? `(${rsize(r)}B)` : ""}`).join(" ");
+    const o = (c.outputReports || []).map(r => `#${hex(r.reportId)}${rsize(r) != null ? `(${rsize(r)}B)` : ""}`).join(" ");
+    const n = (c.inputReports || []).map(r => `#${hex(r.reportId)}`).join(" ");
+    let line = `  intf ${i} usage ${hex(c.usagePage)}/${hex(c.usage)}`;
+    if (f) line += `  feature:[${f}]`;
+    if (o) line += `  output:[${o}]`;
+    if (n) line += `  input:[${n}]`;
+    log(line, "");
+  });
+  const fe = coll.some(c => (c.featureReports || []).some(r => r.reportId === RID_CFG));
+  const ou = coll.some(c => (c.outputReports || []).some(r => r.reportId === RID_CFG));
+  log(`report 0x04 exposed as feature=${fe} output=${ou}`, (fe || ou) ? "ok" : "err");
+}
+
 async function connect() {
   if (!("hid" in navigator)) {
     banner("WebHID is not available. Open this page over <b>localhost</b> or <b>HTTPS</b> in Chrome / Edge.", "err");
@@ -342,15 +373,24 @@ async function connect() {
     await device.open();
     setStatus(true);
     log("Connected: " + (device.productName || "USB Gaming Mouse"), "ok");
+    dumpCollections();
 
-    const hasCfg = device.collections && device.collections.some(c =>
+    const inFeat = device.collections && device.collections.some(c =>
       (c.featureReports || []).some(r => r.reportId === RID_CFG));
-    if (!hasCfg) {
+    const inOut = device.collections && device.collections.some(c =>
+      (c.outputReports || []).some(r => r.reportId === RID_CFG));
+    if (!inFeat && !inOut) {
       banner("⚠ Report 0x04 is <b>not exposed</b> to WebHID on this OS (Windows hides the config interface). Use <code>x3ctl.py</code> instead.", "warn");
       $("applyBtn").disabled = true;
       return;
     }
-    banner("Connected — report 0x04 reachable. Now edit settings and press Apply.", "info");
+    if (inFeat && !inOut) {
+      banner("Report 0x04 is exposed as a <b>feature</b> report, but Chrome may still reject feature writes on this OS — if Apply fails, tick 'output-report fallback' (or use x3ctl.py).", "info");
+    } else if (!inFeat && inOut) {
+      banner("Report 0x04 is exposed as an <b>output</b> report here — tick 'output-report fallback' before applying.", "info");
+    } else {
+      banner("Connected — report 0x04 reachable. Now edit settings and press Apply.", "info");
+    }
 
     // try to read the current config (many units time out; that's fine)
     $("readNote").textContent = "Reading current config…";
@@ -395,16 +435,50 @@ if ("hid" in navigator) {
 }
 
 /* ============================ send ============================ */
+function nativeCmd() {
+  const d = DEFAULTS, parts = [];
+  state.dpi.forEach((v, i) => { if (v !== d.dpi[i]) parts.push(`--stage ${i} --dpi ${v}`); });
+  if (state.active !== d.active) parts.push(`--active-stage ${state.active}`);
+  if (state.polling !== d.polling) parts.push(`--polling ${state.polling}`);
+  if (state.lod !== d.lod) parts.push(`--lod ${state.lod}`);
+  if (state.ripple !== d.ripple) parts.push(`--ripple ${state.ripple ? 1 : 0}`);
+  if (state.angle !== d.angle) parts.push(`--angle ${state.angle ? 1 : 0}`);
+  if (state.motion !== d.motion) parts.push(`--motion ${state.motion ? 1 : 0}`);
+  if (state.sleep !== d.sleep) parts.push(`--sleep ${state.sleep}`);
+  if (state.deep !== d.deep) parts.push(`--deep ${state.deep}`);
+  if (state.key !== d.key) parts.push(`--key ${state.key}`);
+  return "python3 x3ctl.py set " + (parts.join(" ") || "--dpi 1000");
+}
+function logNativeHint() {
+  log("WebHID cannot write this device's config on this OS (the firmware only accepts writes via the System Control 0x01/0x80 collection, which Chrome can't reach).", "warn");
+  log("Run the native tool instead (hidapi works on macOS / Linux / Windows):", "warn");
+  log("  " + nativeCmd(), "send");
+}
 async function send(reportId, payload) {
-  log(`→ report 0x${hex(reportId)} (${payload.length} B): ${bytesHex(payload)}`, "send");
-  try {
-    await device.sendFeatureReport(reportId, Uint8Array.from(payload));
-    log("OK — written", "ok");
-    return true;
-  } catch (e) {
-    log("FAIL: " + e.message, "err");
-    return false;
+  if (!device) { log("Not connected", "err"); return false; }
+  const u8 = Uint8Array.from(payload);
+  // try feature then output (or reversed if the fallback toggle is on)
+  const order = $("asOutput").checked ? ["output", "feature"] : ["feature", "output"];
+  let anyFail = false;
+  for (const m of order) {
+    try {
+      if (m === "feature") {
+        log(`→ feature 0x${hex(reportId)} (${payload.length} B): ${bytesHex(payload)}`, "send");
+        await device.sendFeatureReport(reportId, u8);
+      } else {
+        log(`→ output 0x${hex(reportId)} (${payload.length} B): ${bytesHex(payload)}`, "send");
+        await device.sendReport(reportId, u8);
+      }
+      log("OK — written via " + m + " report", "ok");
+      return true;
+    } catch (e) {
+      log(m + " report 0x" + hex(reportId) + " FAIL: " + e.message, "err");
+      anyFail = true;
+      await new Promise(r => setTimeout(r, 150)); // brief pause before the other mode
+    }
   }
+  if (anyFail && reportId === RID_CFG) logNativeHint();
+  return false;
 }
 async function apply() {
   if (!device) { log("Not connected", "err"); return; }
@@ -454,6 +528,9 @@ $("resetBtn").addEventListener("click", () => {
 });
 $("saveBtn").addEventListener("click", saveConfig);
 $("loadBtn").addEventListener("click", loadConfig);
+$("copyCmd").addEventListener("click", () => {
+  navigator.clipboard.writeText(nativeCmd()).then(() => log("Copied: " + nativeCmd(), "ok"));
+});
 $("polling").addEventListener("change", e => state.polling = +e.target.value);
 $("lod").addEventListener("change", e => state.lod = +e.target.value);
 $("ripple").addEventListener("change", e => state.ripple = e.target.checked);

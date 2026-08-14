@@ -729,12 +729,14 @@ function decodeReport() {
     } else if (rid === 0x05) {
       if (p.length >= 12) {
         const cs = (p.slice(0, 10).reduce((a, b) => a + b, 0) + 0xF0) & 0xff;
-        html = `sleep=${p[8] / 2} min · key_response=${p[9] * 2} ms · deep_sleep bytes ${hex(p[3])} ${hex(p[4])} / ${hex(p[10])} (partial)<br>` +
+        const n = ((p[3] << 8) | p[4]) >> 4;
+        const deep = n > 0x13E ? n - 768 : n > 0x3F ? n - 288 : n - 48;
+        html = `sleep=${p[8] / 2} min · key_response=${p[9] * 2} ms · deep_sleep=${deep} min<br>` +
                `checksum[11]=${hex(p[11])} — ${p[11] === cs ? '<span class="ok">OK</span>' : '<span class="err">BAD (expected ' + hex(cs) + ')</span>'}`;
       } else html = '<span class="err">report 0x05 needs 12 bytes</span>';
     } else if (rid === 0x06) {
       if (p.length >= 4) {
-        const poll = ({ 1: 1000, 2: 500, 3: 250, 4: 125 }[p[2]] || ("?" + hex(p[2])));
+        const poll = ({ 1: 1000, 2: 500, 4: 250, 8: 125 }[p[2]] || ("?" + hex(p[2])));
         html = `polling=${poll} Hz (code ${hex(p[2])}, check ${hex(p[3])})`;
       } else html = '<span class="err">report 0x06 needs 9 bytes</span>';
     } else html = '<span class="muted">no decoder for report ' + hex(rid) + '</span>';

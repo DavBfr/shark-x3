@@ -343,16 +343,27 @@ knowledge needed. Same server: `http://localhost:8000/x3config.html`.
 
 * 6 DPI stages (50–26000, 50-step) with an "active stage" selector
 * polling rate (125/250/500/1000 Hz), lift-off distance, ripple, angle snap,
-  motion sync, sleep time, deep sleep (10/25/60), key response time
+  motion sync, sleep time, deep sleep (1–60 min), key response time
 * **Apply** sends feature reports `0x04` (DPI/flags), `0x05` (sleep/key) and
   `0x06` (polling) with the correct dual checksums
 * tries to read the current config on connect (times out on most units — the
   form then starts from the default/saved profile)
 * save/load config as JSON; settings are remembered in the page until reload
 
-**Verified on macOS/Chrome**: report `0x04` IS exposed over WebHID there, so the
-page works end-to-end. On Windows, WebHID hides the config interface — use
-`x3ctl.py` instead.
+**macOS/Chrome**: report `0x04` IS exposed (51 B) — but under **intf 3, usage
+`0x0B/0x00`**, while the **System Control collection (`0x01/0x80`) is empty**.
+`sendFeatureReport(0x04, …)` still fails (`Failed to write the feature report`).
+Evidence strongly suggests the **firmware only accepts config writes via the
+System Control (`0x01/0x80`) collection** — native `hidapi` on Windows only
+worked when we opened exactly that `Col01` path — and WebHID cannot address it
+(empty on macOS, missing on Windows). So WebHID writes are likely impossible on
+every OS for this device.
+
+The page logs every collection on connect, tries an **output-report fallback**,
+and on failure prints the equivalent native command. **Use the native tool** —
+`x3ctl.py` (hidapi) works on macOS, Windows and Linux, and the page has a
+"Copy x3ctl.py command" button that generates the exact `set` invocation from
+your current settings.
 
 
 ### Features
@@ -457,27 +468,41 @@ DPI value = `((low | (high << 8)) + 1) * 50`.  Each stage is a 16-bit value:
 
 ### Report `0x05` — sleep / deep sleep / key response (12-byte payload)
 
-| offset   | field        | encoding                                                             |
-| -------- | ------------ | -------------------------------------------------------------------- |
-| 0, 1     | header       | `0f 01` (constant)                                                   |
-| 3, 4, 10 | deep sleep   | partial: 10 min → `03 a8`/`01`, 25 → `13 98`/`01`, 60 → `33 c8`/`02` |
-| 8        | sleep time   | minutes × 2 (2 min → `04`, 4.5 → `09`, 30 → `3C`)                    |
-| 9        | key response | ms ÷ 2 (6 ms → `03`, 24 → `0C`, 50 → `19`)                           |
-| 11       | checksum     | `(sum of bytes 0..9 + 0xF0) & 0xFF`                                  |
+| offset   | field        | encoding                                                   |
+| -------- | ------------ | ---------------------------------------------------------- |
+| 0, 1     | header       | `0f 01` (constant)                                         |
+| 3, 4, 10 | deep sleep   | `value = (n<<4) | 8`, `[3]=value>>8`, `[4]=value&0xFF`, `[10]=1/2` |
+| 8        | sleep time   | minutes × 2 (2 min → `04`, 4.5 → `09`, 30 → `3C`)          |
+| 9        | key response | ms ÷ 2 (6 ms → `03`, 24 → `0C`, 50 → `19`)                 |
+| 11       | checksum     | `(sum of bytes 0..9 + 0xF0) & 0xFF`                        |
+
+Deep sleep is a stepped-linear map (verified at 5/10/13/25/27/60 min):
+
+```text
+n = deep + 48   (deep ≤ 15)        value = (n << 4) | 8
+n = deep + 288  (16 ≤ deep ≤ 30)   [3] = value >> 8, [4] = value & 0xFF
+n = deep + 768  (deep > 30)         [10] = 1 (≤30) or 2 (>30)
+```
+
+Examples: `5 → 03 58`, `10 → 03 a8`, `13 → 03 d8`, `25 → 13 98`, `27 → 13 b8`, `60 → 33 c8`.
+
+The `>30` range is verified only at 60 min — the `+768` offset may need one
+more capture (e.g. 45 min) to confirm.
 
 ### Report `0x06` — polling rate (9-byte payload)
 
-| offset | field        | encoding                                                            |
-| ------ | ------------ | ------------------------------------------------------------------- |
-| 0, 1   | header       | `09 01` (constant)                                                  |
-| 2      | polling code | 1000 → `01`, 500 → `02`, 250 → `03` (assumed), 125 → `04` (assumed) |
-| 3      | complement   | `0xFF − code`                                                       |
-| 4..8   | padding      | `00`                                                                |
+| offset | field        | encoding                                |
+| ------ | ------------ | --------------------------------------- |
+| 0, 1   | header       | `09 01` (constant)                      |
+| 2      | polling code | `code = 1000 / Hz` — 1000→`01`, 500→`02`, 250→`04`, 125→`08` |
+| 3      | complement   | `0xFF − code`                           |
+| 4..8   | padding      | `00`                                    |
 
 ### Open questions
 
-* **Deep sleep**: mapping only captured at 10/25/60 min.
-* **Polling 125/250 codes**: only 500/1000 captured (1000 → `01`, 500 → `02`).
+* **Deep sleep > 30 min**: `+768` offset verified only at 60 min.
+* All other fields are now decoded and verified (DPI, flags, LOD, active stage,
+  polling, sleep, key response, checksums).
 
 ## Native fallback: `x3ctl.py` details (RESOLVED)
 

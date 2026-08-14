@@ -29,8 +29,8 @@ Protocol (decoded from differential captures, 2026-08-14):
     [23]=active stage (1-based)
     checksum: [49]=(sum bytes 1..48)>>8, [50]=(sum bytes 0..48 + 0xC7)&0xFF
   report 0x05 (12 B): [8]=sleep_min*2 [9]=key_ms/2 [11]=checksum=(sum[0:10]+0xF0)&0xFF
-    deep sleep: [3]/[4]/[10] partial (only 10/25/60 captured)
-  report 0x06 (9 B): [2]=polling code (1000=01 500=02 250=03? 125=04?) [3]=0xFF-code
+    deep sleep [3]/[4]/[10]: value=(n<<4)|8, n=deep+48(<=15)/deep+288(16-30)/deep+768(>30)
+  report 0x06 (9 B): [2]=polling code = 1000/Hz (1000=01 500=02 250=04 125=08) [3]=0xFF-code
 """
 
 import argparse
@@ -64,8 +64,8 @@ F5_DEEP_LO, F5_DEEP_HI, F5_DEEP_X = 3, 4, 10   # deep sleep, partial decode
 F5_SLEEP, F5_KEY = 8, 9                         # sleep_min*2, key_ms/2
 F5_CHK = 11
 
-# ---- report 0x06 polling codes ----
-POLL_CODE = {1000: 0x01, 500: 0x02, 250: 0x03, 125: 0x04}   # 250/125 hypothesized
+# ---- report 0x06 polling codes: code = 1000 / Hz ----
+POLL_CODE = {1000: 0x01, 500: 0x02, 250: 0x04, 125: 0x08}
 
 
 def chk04(p):
@@ -126,21 +126,45 @@ def build_report04(dpi=None, stage=None, lod=None, ripple=None,
     return bytes(p)
 
 
+def deep_sleep_bytes(deep):
+    """Encode deep sleep minutes into report-0x05 bytes [3],[4],[10].
+    Stepped mapping (verified against 5/10/13/25/27/60 min captures):
+      value = (n << 4) | 8   where n = deep + 48   (deep <= 15)
+                                      n = deep + 288 (16 <= deep <= 30)
+                                      n = deep + 768 (deep > 30, only 60 verified)
+      [10] = 1 for deep <= 30, else 2."""
+    deep = int(round(deep))
+    if deep <= 15:
+        n = deep + 48
+    elif deep <= 30:
+        n = deep + 288
+    else:
+        n = deep + 768
+    v = (n << 4) | 8
+    return (v >> 8) & 0xFF, v & 0xFF, (1 if deep <= 30 else 2)
+
+
+def deep_from_bytes(lo, hi, x):
+    v = (lo << 8) | hi
+    n = v >> 4
+    if n > 0x13E:      # deep > 30 (offset 768)
+        return n - 768
+    if n > 0x3F:       # deep 16..30 (offset 288)
+        return n - 288
+    return n - 48      # deep <= 15 (offset 48)
+
+
 def build_report05(sleep=None, deep=None, key=None):
-    """Build a report-0x05 payload. Deep sleep only supports captured values 10/25/60."""
+    """Build a report-0x05 payload."""
     p = bytearray([0x0f, 0x01, 0x00, 0x03, 0xa8, 0x00, 0x00, 0xff, 0x09, 0x03, 0x01, 0x00])
     if sleep is not None:
         p[F5_SLEEP] = int(round(sleep * 2))
     if key is not None:
         p[F5_KEY] = int(round(key / 2))
     if deep is not None:
-        table = {10: (0x03, 0xa8, 0x01), 25: (0x13, 0x98, 0x01), 60: (0x33, 0xc8, 0x02)}
-        if deep not in table:
-            print(f"WARNING: deep sleep mapping only captured for 10/25/60 min; "
-                  f"using closest captured value.")
-            deep = min(table, key=lambda k: abs(k - deep))
-        lo, hi, x = table[deep]
-        p[F5_DEEP_LO], p[F5_DEEP_HI], p[F5_DEEP_X] = lo, hi, x
+        if not (0 < deep <= 60):
+            sys.exit(f"deep must be 1..60 (got {deep})")
+        p[F5_DEEP_LO], p[F5_DEEP_HI], p[F5_DEEP_X] = deep_sleep_bytes(deep)
     p[F5_CHK] = chk05(p)
     return bytes(p)
 
@@ -171,10 +195,11 @@ def decode05(p):
     if len(p) < 12:
         return f"(report 0x05 needs 12 bytes, got {len(p)})"
     cs_ok = p[F5_CHK] == chk05(p)
+    deep = deep_from_bytes(p[F5_DEEP_LO], p[F5_DEEP_HI], p[F5_DEEP_X])
     return (
         f"sleep={p[F5_SLEEP] / 2:g} min  key_response={p[F5_KEY] * 2} ms  "
-        f"deep_sleep_bytes={p[F5_DEEP_LO]:02x}{p[F5_DEEP_HI]:02x}/{p[F5_DEEP_X]:02x} "
-        f"(partial decode)\nchecksum=0x{p[F5_CHK]:02x} {'OK' if cs_ok else 'BAD'}"
+        f"deep_sleep={deep} min (bytes {p[F5_DEEP_LO]:02x}{p[F5_DEEP_HI]:02x}/{p[F5_DEEP_X]:02x})\n"
+        f"checksum=0x{p[F5_CHK]:02x} {'OK' if cs_ok else 'BAD'}"
     )
 
 
@@ -364,7 +389,7 @@ def main():
     st.add_argument("--active-stage", type=int, help="which DPI stage is active (0..5)")
     st.add_argument("--polling", type=int, choices=[125, 250, 500, 1000], help="polling rate Hz")
     st.add_argument("--sleep", type=float, help="sleep time in minutes (report 0x05)")
-    st.add_argument("--deep", type=int, choices=[10, 25, 60], help="deep sleep min (only captured values)")
+    st.add_argument("--deep", type=int, help="deep sleep in minutes 1..60 (report 0x05)")
     st.add_argument("--key", type=int, help="key response time in ms (report 0x05)")
     st.add_argument("--dry-run", action="store_true", help="print payloads without sending")
 

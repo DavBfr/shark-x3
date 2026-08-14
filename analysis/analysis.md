@@ -1,3 +1,4 @@
+# Analysis
 
 | DPI mode | DPI0  | DPI1  | DPI2  | DPI3  | DPI4  | DPI5  | Polling Rate Hz | Sleep Time Min | Deep Sleep Time Min | Lift Of Distance mm (boolean) | Key Response Time ms | Riple Control | Angle Snap | Motion Sync | Raw Data                                                                                                 |
 | -------- | ----- | ----- | ----- | ----- | ----- | ----- | --------------- | -------------- | ------------------- | ----------------------------- | -------------------- | ------------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------- |

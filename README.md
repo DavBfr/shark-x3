@@ -365,7 +365,6 @@ and on failure prints the equivalent native command. **Use the native tool** —
 "Copy x3ctl.py command" button that generates the exact `set` invocation from
 your current settings.
 
-
 ### Features
 
 * Connect via WebHID (VID `0x1d57` / PID `0xfa61`); auto-detects config
@@ -468,13 +467,13 @@ DPI value = `((low | (high << 8)) + 1) * 50`.  Each stage is a 16-bit value:
 
 ### Report `0x05` — sleep / deep sleep / key response (12-byte payload)
 
-| offset   | field        | encoding                                                   |
-| -------- | ------------ | ---------------------------------------------------------- |
-| 0, 1     | header       | `0f 01` (constant)                                         |
-| 3, 4, 10 | deep sleep   | `value = (n<<4) | 8`, `[3]=value>>8`, `[4]=value&0xFF`, `[10]=1/2` |
-| 8        | sleep time   | minutes × 2 (2 min → `04`, 4.5 → `09`, 30 → `3C`)          |
-| 9        | key response | ms ÷ 2 (6 ms → `03`, 24 → `0C`, 50 → `19`)                 |
-| 11       | checksum     | `(sum of bytes 0..9 + 0xF0) & 0xFF`                        |
+| offset   | field        | encoding                                                            |
+| -------- | ------------ | ------------------------------------------------------------------- |
+| 0, 1     | header       | `0f 01` (constant)                                                  |
+| 3, 4, 10 | deep sleep   | `value = (n<<4) \| 8`, `[3]=value>>8`, `[4]=value&0xFF`, `[10]=1/2` |
+| 8        | sleep time   | minutes × 2 (2 min → `04`, 4.5 → `09`, 30 → `3C`)                   |
+| 9        | key response | ms ÷ 2 (6 ms → `03`, 24 → `0C`, 50 → `19`)                          |
+| 11       | checksum     | `(sum of bytes 0..9 + 0xF0) & 0xFF`                                 |
 
 Deep sleep is a stepped-linear map (verified at 5/10/13/25/27/60 min):
 
@@ -491,12 +490,12 @@ more capture (e.g. 45 min) to confirm.
 
 ### Report `0x06` — polling rate (9-byte payload)
 
-| offset | field        | encoding                                |
-| ------ | ------------ | --------------------------------------- |
-| 0, 1   | header       | `09 01` (constant)                      |
+| offset | field        | encoding                                                     |
+| ------ | ------------ | ------------------------------------------------------------ |
+| 0, 1   | header       | `09 01` (constant)                                           |
 | 2      | polling code | `code = 1000 / Hz` — 1000→`01`, 500→`02`, 250→`04`, 125→`08` |
-| 3      | complement   | `0xFF − code`                           |
-| 4..8   | padding      | `00`                                    |
+| 3      | complement   | `0xFF − code`                                                |
+| 4..8   | padding      | `00`                                                         |
 
 ### Open questions
 

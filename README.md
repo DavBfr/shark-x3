@@ -33,19 +33,10 @@ on any setting for more detail).
 ## Run it
 
 ```bash
-flutter run -d linux        # primary target; needs libhidapi-hidraw.so.0
-flutter run -d windows      # needs hidapi.dll on PATH/system
-flutter run -d macos        # builds/runs, but cannot configure the mouse — see below
+flutter run -d linux        # needs libhidapi-hidraw.so.0
+flutter run -d windows      # download hidapi.dll during build
+flutter run -d macos
 ```
-
-> **macOS limitation (verified):** when the X3 is connected as the system's
-> mouse, macOS seizes every HID interface — opening the config interface
-> fails with `kIOReturnExclusiveAccess` (and the input interfaces with
-> `kIOReturnNotPermitted`) for **any** app, sandboxed or not. The macOS build
-> compiles and runs (it carries the `com.apple.security.device.usb`
-> entitlement), but the app cannot open the mouse there; use **Linux** (the
-> primary target) or Windows. The app says exactly this in the Connect status
-> message.
 
 Tests: `flutter test` (protocol round-trips + checksums verified against the
 captured baseline and the README tables).

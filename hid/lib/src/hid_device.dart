@@ -33,6 +33,9 @@ abstract class HidDevice {
   /// Open the exact interface by its platform-specific [path].
   Future<bool> openPath(String path);
 
+  /// Last error string reported by the HID library, if any.
+  String? get lastError => null;
+
   Future<void> close();
 
   Stream<List<int>> read(int length, int duration);

@@ -74,13 +74,31 @@ class UsbDevice extends HidDevice {
   final Api _api;
   Pointer<hid_device>? _raw;
   bool isOpen = false;
+  String? _lastError;
+
+  @override
+  String? get lastError => _lastError;
+
+  String? _readError(Pointer<hid_device> dev) {
+    final ptr = _api.error(dev);
+    if (ptr.address == nullptr.address) return null;
+    return ptr.toDartString();
+  }
 
   @override
   Future<bool> open() async {
+    _lastError = null;
     final pointer = _api.open(vendorId, productId, serialNumber.toPointer());
-    if (pointer.address == nullptr.address) return false;
+    if (pointer.address == nullptr.address) {
+      _lastError = _readError(nullptr);
+      return false;
+    }
     final result = _api.set_nonblocking(pointer, 1);
-    if (result == -1) return false;
+    if (result == -1) {
+      _lastError = _readError(pointer);
+      _api.close(pointer);
+      return false;
+    }
     _raw = pointer;
     isOpen = true;
     return true;
@@ -88,12 +106,20 @@ class UsbDevice extends HidDevice {
 
   @override
   Future<bool> openPath(String devicePath) async {
+    _lastError = null;
     final cpath = devicePath.toNativeUtf8();
     try {
       final pointer = _api.open_path(cpath.cast<Char>());
-      if (pointer.address == nullptr.address) return false;
+      if (pointer.address == nullptr.address) {
+        _lastError = _readError(nullptr);
+        return false;
+      }
       final result = _api.set_nonblocking(pointer, 1);
-      if (result == -1) return false;
+      if (result == -1) {
+        _lastError = _readError(pointer);
+        _api.close(pointer);
+        return false;
+      }
       _raw = pointer;
       isOpen = true;
       return true;

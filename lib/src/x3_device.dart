@@ -172,8 +172,11 @@ class X3DeviceService {
     if (match == null) return 'Could not reopen the mouse to configure it.';
     final opened = await match.openPath(cfg.path);
     if (!opened) {
-      return 'Could not open the mouse’s configuration interface. It may be '
-          'in use — close other programs that talk to the mouse and try again.';
+      final detail = match.lastError;
+      return 'Could not open the mouse’s configuration interface'
+          '${detail != null && detail.isNotEmpty ? ' — $detail' : ''}. It may '
+          'be in use — close other programs that talk to the mouse and try '
+          'again.';
     }
     _device = match;
     _config = cfg;

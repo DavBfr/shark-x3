@@ -21,7 +21,9 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
   final X3DeviceService _service = X3DeviceService();
   final X3Prefs _prefs = X3Prefs();
 
-  late X3Profile _profile;
+  // Initialized to defaults synchronously so the first build never sees a
+  // null profile; _loadInitial() replaces it with the persisted profile.
+  X3Profile _profile = X3Profile.defaults();
   bool _connected = false;
   bool _busy = false;
   String _statusMessage = '';

@@ -532,25 +532,34 @@ on any setting for more detail).
   (1/2 mm), ripple control, angle snap, motion sync.
 * **Power & battery** — sleep time (0.5–30 min), deep sleep (1–60 min), key
   response time (1–50 ms).
-* **Apply** — sends reports `0x04` → `0x06` → `0x05` with correct dual
-  checksums, with live success/partial/failure feedback.
+* **Apply (differential)** — the mouse can't report its own settings (reads
+  time out), so the app keeps the last successful apply in
+  shared_preferences. The first Apply sends everything (reports `0x04` →
+  `0x06` → `0x05` with correct dual checksums); afterwards only the reports
+  whose settings changed are sent, with live success/partial/failure feedback.
 * **Profiles** — the current setup is auto-saved (via `shared_preferences`) on
   every change and restored on launch; save/load named profiles from the
   "Profiles" menu; "Reset to defaults" restores the factory profile.
-* **Best-effort read** on connect — this device normally times out on feature
-  reads, so the app falls back to the saved profile with a friendly note.
+* **No read-back** — this mouse cannot report its current settings, so the
+  app never tries to read it; it relies on the stored last-applied profile as
+  the source of truth for what is on the mouse.
 
 ### Run it
 
 ```bash
-flutter run -d macos        # macOS (verified)
+flutter run -d linux        # primary target; needs libhidapi-hidraw.so.0
 flutter run -d windows      # needs hidapi.dll on PATH/system
-flutter run -d linux        # needs libhidapi-hidraw.so.0
+flutter run -d macos        # builds/runs, but cannot configure the mouse — see below
 ```
 
-macOS: the sandboxed app already carries the `com.apple.security.device.usb`
-entitlement (added to `macos/Runner/DebugProfile.entitlements` and
-`Release.entitlements`), so USB HID access works out of the box.
+> **macOS limitation (verified):** when the X3 is connected as the system's
+> mouse, macOS seizes every HID interface — opening the config interface
+> fails with `kIOReturnExclusiveAccess` (and the input interfaces with
+> `kIOReturnNotPermitted`) for **any** app, sandboxed or not. The macOS build
+> compiles and runs (it carries the `com.apple.security.device.usb`
+> entitlement), but the app cannot open the mouse there; use **Linux** (the
+> primary target) or Windows. The app says exactly this in the Connect status
+> message.
 
 Tests: `flutter test` (protocol round-trips + checksums verified against the
 captured baseline and the README tables).
@@ -563,7 +572,8 @@ captured baseline and the README tables).
 * `lib/src/x3_profile.dart` — profile model, factory defaults + LED colors,
   JSON round-tripping, value clamping.
 * `lib/src/x3_device.dart` — wraps the `hid` plugin: enumerate → pick the
-  config collection → `openPath()` → send feature reports → best-effort read.
+  config collection → `openPath()` → send feature reports. A best-effort read
+  is kept only for diagnostics — this mouse can't report its settings.
 * `lib/src/x3_prefs.dart` — `shared_preferences` persistence.
 * `lib/src/x3_settings_page.dart` + `lib/src/widgets/*` — the UI.
 

@@ -173,10 +173,14 @@ class X3DeviceService {
     final opened = await match.openPath(cfg.path);
     if (!opened) {
       final detail = match.lastError;
+      final hint = Platform.isMacOS
+          ? ' macOS is using this mouse as the system pointer and does not '
+                'let other apps open it — run this app on Windows or Linux '
+                'to configure the mouse.'
+          : ' It may be in use — close other programs that talk to the mouse '
+                'and try again.';
       return 'Could not open the mouse’s configuration interface'
-          '${detail != null && detail.isNotEmpty ? ' — $detail' : ''}. It may '
-          'be in use — close other programs that talk to the mouse and try '
-          'again.';
+          '${detail != null && detail.isNotEmpty ? ' — $detail' : ''}.$hint';
     }
     _device = match;
     _config = cfg;

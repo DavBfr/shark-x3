@@ -509,3 +509,73 @@ The original README capture was **50 bytes** after the report ID — it was
 missing a single `00` padding byte. The full 51-byte structure was confirmed by
 the differential capture table (52 bytes on the wire, matching the descriptor).
 The tools now use the verified 51-byte payload.
+
+---
+
+## Flutter app: `shark_x3` (friendly end-user config UI)
+
+A desktop-only Flutter app that configures the X3 through the local `hid`
+plugin — no hex, no Windows, no Python needed. Single scrolling page aimed at
+regular users, with plain-English explanations for every setting (tap the `?`
+on any setting for more detail).
+
+### Features
+
+* **Connect** — finds the mouse (VID `0x1d57` / PID `0xfa61`) and opens the
+  configuration interface (System Control collection, usage `0x01/0x80`) *by
+  path*, which is the only way the firmware accepts config writes.
+* **Sensitivity (DPI)** — 6 stages with the factory defaults and LED colors:
+  `800 red · 1600 green (default active) · 2400 blue · 3200 cyan · 5000 yellow
+  · 26000 purple`. Each stage has an active selector, a slider (50–26000, 50
+  steps) and quick presets; the card header shows the active stage's color.
+* **Mouse response** — polling rate (125/250/500/1000 Hz), lift-off distance
+  (1/2 mm), ripple control, angle snap, motion sync.
+* **Power & battery** — sleep time (0.5–30 min), deep sleep (1–60 min), key
+  response time (1–50 ms).
+* **Apply** — sends reports `0x04` → `0x06` → `0x05` with correct dual
+  checksums, with live success/partial/failure feedback.
+* **Profiles** — the current setup is auto-saved (via `shared_preferences`) on
+  every change and restored on launch; save/load named profiles from the
+  "Profiles" menu; "Reset to defaults" restores the factory profile.
+* **Best-effort read** on connect — this device normally times out on feature
+  reads, so the app falls back to the saved profile with a friendly note.
+
+### Run it
+
+```bash
+flutter run -d macos        # macOS (verified)
+flutter run -d windows      # needs hidapi.dll on PATH/system
+flutter run -d linux        # needs libhidapi-hidraw.so.0
+```
+
+macOS: the sandboxed app already carries the `com.apple.security.device.usb`
+entitlement (added to `macos/Runner/DebugProfile.entitlements` and
+`Release.entitlements`), so USB HID access works out of the box.
+
+Tests: `flutter test` (protocol round-trips + checksums verified against the
+captured baseline and the README tables).
+
+### How it maps to the protocol
+
+* `lib/src/x3_protocol.dart` — pure-Dart codec ported 1:1 from `x3ctl.py`
+  (build `0x04`/`0x05`/`0x06`, dual checksums, DPI + deep-sleep encoding,
+  decoders). No Flutter dependency, fully unit-tested.
+* `lib/src/x3_profile.dart` — profile model, factory defaults + LED colors,
+  JSON round-tripping, value clamping.
+* `lib/src/x3_device.dart` — wraps the `hid` plugin: enumerate → pick the
+  config collection → `openPath()` → send feature reports → best-effort read.
+* `lib/src/x3_prefs.dart` — `shared_preferences` persistence.
+* `lib/src/x3_settings_page.dart` + `lib/src/widgets/*` — the UI.
+
+### hid plugin extension
+
+The stock `hid` plugin opens devices by VID/PID, which cannot target the X3's
+config interface. The local `hid/` package was extended with:
+
+* `HidDevice.path` and `HidDevice.interfaceNumber` (now populated from
+  enumeration), and
+* `HidDevice.openPath(String path)` — wraps the already-bound
+  `hid_open_path` FFI call, so the exact config collection can be opened.
+
+Rebuild the plugin's macOS pod if the deployment-target warning appears after
+updating `hid/macos/hid.podspec` (target was raised from 10.11 to 10.13).

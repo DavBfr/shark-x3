@@ -8,6 +8,8 @@ abstract class HidDevice {
     required this.productName,
     this.usagePage,
     this.usage,
+    this.path,
+    this.interfaceNumber,
   });
 
   final int vendorId;
@@ -17,7 +19,19 @@ abstract class HidDevice {
   final int? usagePage;
   final int? usage;
 
+  /// Platform-specific device path (e.g. `/dev/hidraw4` on Linux, the
+  /// `hid#vid_...&mi_02#...` string on Windows). Used to open the exact
+  /// interface of a composite device.
+  final String? path;
+
+  /// USB interface number (USB devices only, else -1).
+  final int? interfaceNumber;
+
+  /// Open the device by its enum-reported vendor/product id.
   Future<bool> open();
+
+  /// Open the exact interface by its platform-specific [path].
+  Future<bool> openPath(String path);
 
   Future<void> close();
 

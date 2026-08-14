@@ -47,6 +47,8 @@ class _HidApi extends HidInterface {
           productName: ref.product_string.toDartString(),
           usagePage: ref.usage_page,
           usage: ref.usage,
+          path: ref.path.toCharString(),
+          interfaceNumber: ref.interface_number,
         ),
       );
       current = ref.next;
@@ -65,6 +67,8 @@ class UsbDevice extends HidDevice {
     required super.productName,
     required super.usagePage,
     required super.usage,
+    super.path,
+    super.interfaceNumber,
   });
 
   final Api _api;
@@ -80,6 +84,22 @@ class UsbDevice extends HidDevice {
     _raw = pointer;
     isOpen = true;
     return true;
+  }
+
+  @override
+  Future<bool> openPath(String devicePath) async {
+    final cpath = devicePath.toNativeUtf8();
+    try {
+      final pointer = _api.open_path(cpath.cast<Char>());
+      if (pointer.address == nullptr.address) return false;
+      final result = _api.set_nonblocking(pointer, 1);
+      if (result == -1) return false;
+      _raw = pointer;
+      isOpen = true;
+      return true;
+    } finally {
+      calloc.free(cpath);
+    }
   }
 
   @override
@@ -190,6 +210,22 @@ class UsbDevice extends HidDevice {
     } finally {
       calloc.free(buf);
     }
+  }
+}
+
+extension PointerCharToString on Pointer<Char> {
+  /// UTF-8 C string to Dart string (NULL pointer -> empty string).
+  String toCharString() {
+    if (address == nullptr.address) return '';
+    final bytes = <int>[];
+    var i = 0;
+    while (true) {
+      final b = (this + i).value;
+      if (b == 0) break;
+      bytes.add(b);
+      i++;
+    }
+    return String.fromCharCodes(bytes);
   }
 }
 

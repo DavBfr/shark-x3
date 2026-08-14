@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATTACK SHARK X3 — HID Config Tool (WebHID)</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #161d2e;
+    --panel2: #1c2438;
+    --border: #2a3550;
+    --text: #d7dde8;
+    --muted: #7c879c;
+    --accent: #4a9eff;
+    --ok: #35c759;
+    --warn: #ffb020;
+    --err: #ff5c5c;
+    --diff: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+    padding: 18px;
+  }
+  header h1 { margin: 0 0 2px; font-size: 20px; }
+  header p.sub { margin: 0 0 12px; color: var(--muted); }
+  .banner { padding: 10px 14px; border-radius: 8px; margin: 8px 0; font-weight: 600; }
+  .banner.err { background: #3a1418; color: var(--err); border: 1px solid #6b2529; }
+  .banner.ok  { background: #12351c; color: var(--ok);  border: 1px solid #1f5c2f; }
+  .banner.warn{ background: #3a2c12; color: var(--warn); border: 1px solid #6b5316; }
+  .banner.info{ background: #12243a; color: var(--accent); border: 1px solid #1f4370; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; margin: 14px 0;
+  }
+  .card h2 { margin: 0 0 10px; font-size: 15px; letter-spacing: .3px; text-transform: uppercase; color: var(--accent); }
+  button {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: #16345c; border-color: #24508c; color: #cfe4ff; }
+  button.danger { background: #3a1418; border-color: #6b2529; color: var(--err); }
+  button.ok { background: #12351c; border-color: #1f5c2f; color: var(--ok); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  input[type=text], textarea, select {
+    background: #0d1220; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px;
+  }
+  textarea { width: 100%; resize: vertical; }
+  label { color: var(--muted); font-size: 12px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 0 0 auto; }
+  .muted { color: var(--muted); }
+  .mono { font-family: Consolas, "Cascadia Mono", monospace; }
+  code { background: #0d1220; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: Consolas, monospace; font-size: 12px; }
+  table { border-collapse: collapse; width: 100%; font-family: Consolas, monospace; font-size: 12px; }
+  th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: center; }
+  th { background: var(--panel2); color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+  tr.diffrow td { color: var(--diff); font-weight: 700; background: #2a1216; }
+  .logbox {
+    background: #0a0e18; border: 1px solid var(--border); border-radius: 8px;
+    font-family: Consolas, monospace; font-size: 12px; padding: 10px; height: 200px;
+    overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .logbox .t { color: var(--muted); }
+  .logbox .ok { color: var(--ok); }
+  .logbox .err { color: var(--err); }
+  .logbox .warn { color: var(--warn); }
+  .logbox .send { color: var(--accent); }
+  .slot { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 8px 0; background: var(--panel2); }
+  .slot .head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .slot .name { font-weight: 700; color: var(--accent); min-width: 26px; }
+  .slot .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .slot .btns button { padding: 3px 9px; font-size: 12px; }
+  #editorGrid { display: flex; flex-wrap: wrap; gap: 4px; max-width: 100%; margin: 8px 0; }
+  .hexcell {
+    width: 34px; text-align: center; padding: 5px 0; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 5px; background: #0d1220; color: var(--text);
+  }
+  .hexcell.sel { border-color: var(--accent); background: #14294a; }
+  .hexcell.dpi { border-color: var(--ok); }
+  .hexcell.diff { color: var(--diff); border-color: var(--diff); }
+  .offlab { font-size: 10px; color: var(--muted); align-self: flex-end; width: 34px; text-align: center; }
+  .bytegap { width: 12px; }
+  .chgrow { margin: 2px 0; }
+  .chgrow .off { display: inline-block; min-width: 48px; color: var(--accent); font-family: Consolas, monospace; }
+  .chgrow .u16 { color: var(--muted); font-family: Consolas, monospace; }
+  #dpiCandidates table td { cursor: pointer; }
+  #dpiCandidates table tr:hover td { background: #14294a; }
+  details summary { cursor: pointer; color: var(--accent); }
+  .sectionNote { font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
+  .monoBadge { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🦈 ATTACK SHARK X3 — HID Config Tool</h1>
+  <p class="sub">WebHID reverse-engineering helper · VID <code>0x1d57</code> PID <code>0xfa61</code> · config interface 2 (usage 0x01/0x80) · Feature Report <code>0x04</code> (51-byte payload)</p>
+</header>
+
+<div id="banner"></div>
+
+<details class="card" open>
+  <summary><b>How to use</b></summary>
+  <p class="sectionNote" style="margin-top:8px">
+    1) Serve this file over <b>localhost</b> (WebHID needs a secure context): e.g. <code>python -m http.server 8000</code> then open
+    <code>http://localhost:8000/x3tool.html</code> in <b>Chrome or Edge</b>.
+    <br>2) Click <b>Connect</b> and pick the "USB Gaming Mouse".
+    <br>3) Paste captured Wireshark <code>SET_REPORT</code> payloads into the <b>capture slots</b> (one per experiment) and press <b>Compare</b> — it highlights exactly which bytes changed between captures.
+    <br>4) Use the <b>DPI scanner</b> to find the DPI field, then edit bytes in the <b>config editor</b> and press <b>Send</b> to test a hypothesis (only after you have enough differential evidence!).
+    <br>Reads (<code>receiveFeatureReport</code>) may time out on this device — that's expected; writes are the reliable path.
+  </p>
+</details>
+
+<section class="card">
+  <h2>Device</h2>
+  <div class="row">
+    <button id="connectBtn" class="primary">🔌 Connect X3</button>
+    <button id="anyBtn">Show all HID devices…</button>
+    <button id="diagBtn">🔍 Dump collections</button>
+    <button id="disconnectBtn" class="danger" disabled>Disconnect</button>
+    <span id="deviceState" class="muted">Not connected</span>
+  </div>
+  <div id="deviceInfo" class="sectionNote" style="margin-top:8px"></div>
+</section>
+
+<section class="card">
+  <h2>Raw report terminal</h2>
+  <div class="row" style="margin-bottom:8px">
+    <label>Report ID</label>
+    <input type="text" id="reportId" value="04" list="rids" style="width:70px">
+    <datalist id="rids"></datalist>
+    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="asOutput"> send as OUTPUT report</label>
+    <button id="fixChk">Fix checksum</button>
+    <button id="sendBtn" class="ok">Send report</button>
+    <button id="readBtn">Read feature report</button>
+    <button id="clearLog">Clear log</button>
+  </div>
+  <div id="reportLog" class="logbox"></div>
+</section>
+
+<section class="card">
+  <h2>Capture slots (differential analysis)</h2>
+  <p class="sectionNote">Paste one captured <code>SET_REPORT</code> payload per slot. Tick <b>strip</b> if the pasted hex starts with the report-ID byte (<code>04</code>). Byte count vs descriptor-expected is shown per slot.</p>
+  <div id="slots"></div>
+  <div class="row" style="margin-top:8px">
+    <button id="addSlot">+ Add slot</button>
+    <button id="compareBtn" class="primary">🔍 Compare all slots</button>
+    <button id="copyDiff">Copy changed offsets</button>
+  </div>
+  <div id="diffSummary" class="sectionNote" style="margin-top:8px"></div>
+  <div style="max-height:320px; overflow:auto">
+    <table id="diffTable" style="display:none">
+      <thead><tr><th>off</th><th id="thA">A</th><th id="thB">B</th><th id="thC">C</th></tr></thead>
+      <tbody id="diffBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Config editor (working payload)</h2>
+  <div class="row" style="margin-bottom:6px">
+    <label>Hex paste (import)</label>
+    <input type="text" id="pasteHex" style="width:460px" placeholder="38 01 00 00 3f ...">
+    <button id="importBtn">Import</button>
+    <button id="resetBaseline">Load baseline</button>
+    <button id="clearEditor" class="danger">Clear</button>
+    <span id="editorMeta" class="monoBadge"></span>
+  </div>
+  <div class="row" style="margin-bottom:6px">
+    <button id="insByte">Insert byte</button>
+    <button id="delByte" class="danger">Delete byte</button>
+    <label>Selected range (u16 LE):</label>
+    <input type="text" id="u16val" style="width:80px">
+    <button id="setU16" class="ok">Set u16</button>
+    <span id="selInfo" class="muted"></span>
+  </div>
+  <div id="editorGrid"></div>
+  <div id="editorWarn" class="sectionNote"></div>
+</section>
+
+<section class="card">
+  <h2>DPI writer</h2>
+  <p class="sectionNote">Encodes DPI the way the firmware does: stage byte = DPI/50 − 1 at offset 7+stage (stage 5 also sets the carry byte at 20), then fixes the checksum. DPI must be a multiple of 50.</p>
+  <div class="row">
+    <label>Stage</label>
+    <select id="dpiStage">
+      <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+      <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+    </select>
+    <label>DPI</label>
+    <input type="number" id="dpiValue" value="1000" step="50" min="50" max="26000" style="width:90px">
+    <button id="setDpi" class="ok">Write DPI</button>
+    <span class="muted">quick:</span>
+    <span id="dpiQuick">
+      <button data-dpi="750">750</button><button data-dpi="800">800</button><button data-dpi="1000">1000</button>
+      <button data-dpi="1200">1200</button><button data-dpi="1600">1600</button><button data-dpi="2000">2000</button>
+      <button data-dpi="26000">26000</button><button data-dpi="50">50</button>
+    </span>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Decoded report</h2>
+  <p class="sectionNote">Interprets the current editor payload using the decoded protocol (report 0x04 / 0x05 / 0x06).</p>
+  <div id="decodeOut" class="mono"></div>
+</section>
+
+<section class="card">
+  <h2>DPI / numeric field scanner</h2>
+  <p class="sectionNote">Scans the current editor payload for every little-endian u16 / u32 in the X3 DPI range (50–26000, step 50). Click a row to select that byte range in the editor.</p>
+  <button id="scanBtn" class="primary">Scan editor</button>
+  <div id="dpiCandidates" style="margin-top:8px"></div>
+</section>
+
+<section class="card">
+  <h2>Persistence</h2>
+  <p class="sectionNote">Slots, editor and report ID auto-save to localStorage. You can also export/import everything as JSON.</p>
+  <div class="row">
+    <button id="exportBtn">Export JSON</button>
+    <button id="importJsonBtn">Import JSON</button>
+    <textarea id="jsonArea" style="display:none; width:100%; height:90px" placeholder="Paste JSON here then press Import JSON"></textarea>
+  </div>
+</section>
+
+<script>
+"use strict";
+
+/* ============================== constants ============================== */
+const VENDOR_ID   = 0x1d57;
+const PRODUCT_ID  = 0xfa61;
+const CONFIG_UP   = 0x01;      // generic desktop
+const CONFIG_USAGE= 0x80;      // system control
+const REPORT_ID   = 0x04;      // config feature report id
+const EXPECTED    = 51;        // bytes of payload for report 0x04 (from descriptor 95 33)
+
+/* captured baseline (payload only, report ID stripped) — from README capture */
+const BASELINE = [
+  0x38,0x01,0x00,0x00,0x3f,0x00,0x00,0x0e,0x18,0x31,0x63,0xc7,0x8f,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x01,0xff,0x00,0x00,0x00,
+  0xff,0x00,0x00,0x00,0xff,0xff,0xff,0x00,0x00,0xff,0xff,0xff,0x00,0xff,0xff,
+  0x40,0x00,0xff,0xff,0xff,0x01,0x0f,0x85
+];
+
+/* ============================== helpers ================================ */
+const $ = id => document.getElementById(id);
+const hex = (n, w = 2) => n.toString(16).toUpperCase().padStart(w, "0");
+
+function hexToBytes(s) {
+  const clean = String(s).replace(/0x/gi, " ").replace(/[^0-9a-fA-F]/g, "");
+  if (!clean) return [];
+  if (clean.length % 2 !== 0) throw new Error("Odd number of hex nibbles: " + s);
+  const out = [];
+  for (let i = 0; i < clean.length; i += 2) out.push(parseInt(clean.substr(i, 2), 16));
+  return out;
+}
+const bytesToHex = arr => Array.from(arr).map(b => hex(b)).join(" ");
+const fmtCount = arr => `${arr.length} bytes` + (arr.length === EXPECTED ? "" : `  (descriptor expects ${EXPECTED})`);
+
+/* ============================== state ================================== */
+let device = null;
+let editor = BASELINE.slice();
+let activeSel = 0;                       // start of the 2-byte selected range
+let editorRef = [];                      // baseline snapshot for "diff" highlight
+const reportLog = $("reportLog");
+
+/* slots: [{name, hex, strip}]  -> bytes parsed on demand */
+let slots = [
+  { name: "A", hex: bytesToHex(BASELINE), strip: false },
+  { name: "B", hex: "", strip: true },
+  { name: "C", hex: "", strip: true },
+];
+
+/* ============================== logging ================================ */
+function log(msg, type = "") {
+  const d = new Date();
+  const ts = `${d.toLocaleTimeString()}.${String(d.getMilliseconds()).padStart(3,"0")}`;
+  const line = document.createElement("div");
+  line.innerHTML = `<span class="t">[${ts}]</span> <span class="${type}">${msg}</span>`;
+  reportLog.appendChild(line);
+  reportLog.scrollTop = reportLog.scrollHeight;
+}
+function banner(msg, type) {
+  $("banner").innerHTML = `<div class="banner ${type}">${msg}</div>`;
+}
+
+/* ============================== device ================================= */
+function findFeatureReport(reportId) {
+  const coll = device ? device.collections || [] : [];
+  for (const c of coll) {
+    const r = (c.featureReports || []).find(x => x.reportId === reportId);
+    if (r) return { collection: c, report: r };
+  }
+  return null;
+}
+function availableFeatureIds() {
+  const ids = [];
+  ((device ? device.collections : []) || []).forEach(c => (c.featureReports || []).forEach(r => ids.push(r.reportId)));
+  return [...new Set(ids)].sort((a, b) => a - b);
+}
+function refreshReportIdList() {
+  const dl = $("rids");
+  dl.innerHTML = "";
+  availableFeatureIds().forEach(id => {
+    const opt = document.createElement("option");
+    opt.value = hex(id);
+    dl.appendChild(opt);
+  });
+}
+function dumpCollections() {
+  if (!device) { log("Not connected", "err"); return; }
+  const coll = device.collections || [];
+  if (!coll.length) { log("WebHID exposes NO collections for this device.", "warn"); return; }
+  log(`WebHID exposes ${coll.length} top-level collection(s) on this OS:`, "");
+  coll.forEach((c, i) => {
+    const feats = (c.featureReports || []).map(r => {
+      const sz = reportSizeBytes(r);
+      return `#${hex(r.reportId)}${sz != null ? `(${sz}B)` : ""}`;
+    });
+    const ins = (c.inputReports || []).map(r => `#${hex(r.reportId)}`);
+    const outs = (c.outputReports || []).map(r => `#${hex(r.reportId)}`);
+    let line = `  intf ${i}: usage ${hex(c.usagePage)}/${hex(c.usage)}`;
+    if (c.usagePage === CONFIG_UP && c.usage === CONFIG_USAGE) line += `  ← CONFIG (0x01/0x80)`;
+    if (feats.length) line += `  feature:[${feats.join(" ")}]`;
+    if (ins.length) line += `  input:[${ins.join(" ")}]`;
+    if (outs.length) line += `  output:[${outs.join(" ")}]`;
+    log(line, "");
+  });
+  const r4 = findFeatureReport(REPORT_ID);
+  if (r4) {
+    const sz = reportSizeBytes(r4.report);
+    log(`✓ Feature report 0x04 IS exposed (intf usage ${hex(r4.collection.usagePage)}/${hex(r4.collection.usage)}) · payload ${sz != null ? sz : "?"} B.`, "ok");
+  } else {
+    const avail = availableFeatureIds();
+    log(`✗ Report 0x04 is NOT exposed as a feature report. Available feature IDs: ${avail.map(hex).join(", ") || "none"}.`, "err");
+    log("Possible reasons: WebHID on Windows only exposes some interfaces, or the config path uses an OUTPUT report. Try other report IDs / the output-report checkbox.", "warn");
+  }
+}
+function renderDevice() {
+  $("deviceState").textContent = device ? "Connected" : "Not connected";
+  $("disconnectBtn").disabled = !device;
+  const info = $("deviceInfo");
+  if (!device) { info.innerHTML = ""; return; }
+  refreshReportIdList();
+
+  const coll = device.collections || [];
+  const r4 = findFeatureReport(REPORT_ID);
+  const cfg = coll.find(c => c.usagePage === CONFIG_UP && c.usage === CONFIG_USAGE) || (r4 && r4.collection);
+
+  let html = `<b>${device.productName || "?"}</b> · VID ${hex(device.vendorId,4)} PID ${hex(device.productId,4)} · ${coll.length} top-level collection(s)<br>`;
+  coll.forEach((c, i) => {
+    const feats = (c.featureReports || []).map(r => {
+      const sz = reportSizeBytes(r);
+      return `#${hex(r.reportId)}${sz != null ? `(${sz}B)` : ""}`;
+    }).join(" ");
+    const ins = (c.inputReports || []).map(r => `#${hex(r.reportId)}`).join(" ");
+    const outs = (c.outputReports || []).map(r => `#${hex(r.reportId)}`).join(" ");
+    const isCfg = (c.usagePage === CONFIG_UP && c.usage === CONFIG_USAGE) || (r4 && r4.collection === c);
+    html += `<div style="margin:4px 0"><span class="muted">intf ${i}</span> usage ${hex(c.usagePage)}/${hex(c.usage)}` +
+            (isCfg ? ` <b class="monoBadge">← CONFIG</b>` : "") +
+            `<br>&nbsp;&nbsp;feature: ${feats || "—"}` +
+            (ins ? `<br>&nbsp;&nbsp;input: ${ins}` : "") +
+            (outs ? `<br>&nbsp;&nbsp;output: ${outs}` : "") +
+            `</div>`;
+  });
+  if (r4) {
+    const want = reportSizeBytes(r4.report);
+    html += `<div style="margin-top:6px">Report <b>0x04</b> exposed in intf usage ${hex(r4.collection.usagePage)}/${hex(r4.collection.usage)} · payload <b>${want != null ? want : "?"}</b> B.</div>`;
+  } else {
+    const avail = availableFeatureIds();
+    html += `<div class="banner err">Report <b>0x04</b> is NOT exposed as a feature report by WebHID on this OS.` +
+            (avail.length ? ` Exposed feature report IDs: ${avail.map(hex).join(", ")}.` : ` No feature reports exposed at all.`) +
+            ` The config interface from the Linux capture may not be visible to WebHID here — hit "Dump collections", try other report IDs, or tick "send as OUTPUT report".</div>`;
+  }
+  info.innerHTML = html;
+}
+function reportSizeBytes(r) {
+  try {
+    const bits = (r.items || []).reduce((a, it) => a + (it.reportSize || 0) * (it.reportCount || 0), 0);
+    return bits / 8;
+  } catch (e) { return null; }
+}
+
+async function connect() {
+  if (!("hid" in navigator)) {
+    banner("WebHID is not available. Open this page over <b>localhost/HTTPS</b> in Chrome or Edge (secure context required).", "err");
+    return;
+  }
+  try {
+    const devs = await navigator.hid.requestDevice({
+      filters: [{ vendorId: VENDOR_ID, productId: PRODUCT_ID }],
+    });
+    if (!devs.length) return;
+    device = devs[0];
+    await device.open();
+    renderDevice();
+    dumpCollections();
+    log(`Connected: ${device.productName || device.productId}`, "ok");
+    const r4 = findFeatureReport(REPORT_ID);
+    if (r4) {
+      banner(`Connected. Feature report 0x04 IS exposed (payload ${reportSizeBytes(r4.report) ?? "?"} B).`, "ok");
+    } else {
+      banner("Connected, but report 0x04 / config interface is NOT exposed to WebHID on this OS. See the collection dump in the log below.", "warn");
+    }
+  } catch (e) {
+    log("Connect failed: " + e.message, "err");
+  }
+}
+async function connectAny() {
+  if (!("hid" in navigator)) return banner("WebHID unavailable (need localhost/HTTPS + Chrome/Edge).", "err");
+  try {
+    const devs = await navigator.hid.requestDevice({ filters: [{ vendorId: VENDOR_ID }] });
+    if (!devs.length) return;
+    device = devs[0];
+    await device.open();
+    renderDevice();
+    dumpCollections();
+    log(`Connected: ${device.productName || device.productId}`, "ok");
+  } catch (e) { log("Connect failed: " + e.message, "err"); }
+}
+async function disconnect() {
+  if (device) { try { await device.close(); } catch (e) {} }
+  device = null; renderDevice(); log("Disconnected", "warn");
+}
+if ("hid" in navigator) {
+  navigator.hid.addEventListener("disconnect", e => {
+    if (device && e.device === device) { device = null; renderDevice(); log("Device disconnected", "warn"); }
+  });
+}
+
+/* ============================== terminal =============================== */
+function currentReportId() {
+  const v = parseInt($("reportId").value.trim(), 16);
+  if (Number.isNaN(v) || v < 0 || v > 0xff) throw new Error("Bad report ID: " + $("reportId").value);
+  return v;
+}
+async function sendReport(bytes) {
+  if (!device) { log("Not connected", "err"); return false; }
+  const rid = currentReportId();
+  const asOutput = $("asOutput").checked;
+  const u8 = Uint8Array.from(bytes);
+  log(`${asOutput ? "SEND output" : "SEND feature"} #${hex(rid)} · ${u8.length} bytes · ${bytesToHex(u8)}`, "send");
+  if (!asOutput && !findFeatureReport(rid)) {
+    log(`Note: report 0x${hex(rid)} is not in any exposed feature report — this will likely fail. Available feature IDs: ${availableFeatureIds().map(hex).join(", ") || "none"}.`, "warn");
+  }
+  try {
+    if (asOutput) await device.sendReport(rid, u8);
+    else await device.sendFeatureReport(rid, u8);
+    log("OK: report written", "ok");
+    return true;
+  } catch (e) {
+    log("FAIL: " + e.message, "err");
+    return false;
+  }
+}
+async function readReport() {
+  if (!device) { log("Not connected", "err"); return; }
+  const rid = currentReportId();
+  log(`READ feature #${hex(rid)} …`, "");
+  try {
+    const dv = await withTimeout(device.receiveFeatureReport(rid), 6000);
+    const arr = Array.from(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength));
+    log(`OK: ${arr.length} bytes · ${bytesToHex(arr)}`, "ok");
+    return arr;
+  } catch (e) {
+    log("FAIL/TIMEOUT: " + e.message + "  (reads often time out on this device — expected)", "err");
+    return null;
+  }
+}
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+}
+
+/* ============================== slots ================================== */
+function slotBytes(s) {
+  const b = hexToBytes(s.hex);
+  return s.strip && b.length ? b.slice(1) : b;
+}
+function renderSlots() {
+  const wrap = $("slots");
+  wrap.innerHTML = "";
+  slots.forEach((s, i) => {
+    const card = document.createElement("div");
+    card.className = "slot";
+    card.innerHTML = `
+      <div class="head">
+        <span class="name">${s.name}</span>
+        <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-slot="${i}" data-field="strip" ${s.strip ? "checked" : ""}> strip report-ID byte</label>
+        <span class="muted" data-count="${i}"></span>
+      </div>
+      <textarea rows="2" data-slot="${i}" data-field="hex" placeholder="hex payload for ${s.name} …">${s.hex}</textarea>
+      <div class="btns">
+        <button data-slot="${i}" data-act="toEditor">→ Editor</button>
+        <button data-slot="${i}" data-act="send">Send as-is</button>
+        <button data-slot="${i}" data-act="save">← Save editor</button>
+        <button data-slot="${i}" data-act="clear" class="danger">Clear</button>
+      </div>`;
+    wrap.appendChild(card);
+  });
+  slots.forEach((s, i) => updateSlotCount(i));
+  // re-apply header names in diff table
+  ["thA", "thB", "thC"].forEach((id, i) => { const th = $(id); if (th && slots[i]) th.textContent = slots[i].name; });
+}
+function updateSlotCount(i) {
+  const el = document.querySelector(`[data-count="${i}"]`);
+  if (!el) return;
+  try { el.textContent = fmtCount(slotBytes(slots[i])); }
+  catch (e) { el.textContent = "hex error"; }
+}
+$("slots").addEventListener("input", e => {
+  if (e.target.dataset.slot === undefined) return;
+  const i = +e.target.dataset.slot;
+  slots[i][e.target.dataset.field] = e.target.dataset.field === "strip" ? e.target.checked : e.target.value;
+  updateSlotCount(i);
+  persist();
+});
+$("slots").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const i = +btn.dataset.slot;
+  switch (btn.dataset.act) {
+    case "toEditor":
+      try { editor = slotBytes(slots[i]).slice(); editorRef = editor.slice(); activeSel = 0; renderEditor(); log(`Loaded slot ${slots[i].name} → editor`, ""); }
+      catch (err) { log("Slot parse error: " + err.message, "err"); }
+      break;
+    case "send": sendReport(slotBytes(slots[i])); break;
+    case "save": slots[i].hex = bytesToHex(editor); renderSlots(); persist(); break;
+    case "clear": slots[i].hex = ""; updateSlotCount(i); persist(); break;
+  }
+});
+$("addSlot").addEventListener("click", () => {
+  const next = String.fromCharCode(65 + slots.length); // A,B,C,...
+  slots.push({ name: next, hex: "", strip: true });
+  renderSlots(); persist();
+});
+$("compareBtn").addEventListener("click", compareSlots);
+
+function compareSlots() {
+  const parsed = slots.map(s => { try { return slotBytes(s); } catch (e) { log("Slot " + s.name + " hex error: " + e.message, "err"); return []; } });
+  const names = slots.map(s => s.name);
+  const maxLen = Math.max(0, ...parsed.map(a => a.length));
+  const tbody = $("diffBody");
+  const head = $("diffTable").querySelector("thead tr");
+  // rebuild header to match slot count
+  head.innerHTML = "<th>off</th>" + names.map(n => `<th>${n}</th>`).join("");
+  tbody.innerHTML = "";
+  const changed = [];
+  for (let i = 0; i < maxLen; i++) {
+    const vals = parsed.map(a => (a[i] !== undefined ? a[i] : -1));
+    const differ = new Set(vals).size > 1;
+    if (differ) changed.push(i);
+    const tr = document.createElement("tr");
+    if (differ) tr.className = "diffrow";
+    const off = document.createElement("td");
+    off.textContent = hex(i);
+    tr.appendChild(off);
+    vals.forEach(v => { const td = document.createElement("td"); td.textContent = v === -1 ? "—" : hex(v); tr.appendChild(td); });
+    tbody.appendChild(tr);
+  }
+  $("diffTable").style.display = maxLen ? "table" : "none";
+  const sum = $("diffSummary");
+  if (!maxLen) { sum.innerHTML = "No payloads to compare."; return; }
+  if (!changed.length) {
+    sum.innerHTML = `<b>All slots identical</b> (${maxLen} bytes).`;
+    window.__changedOffsets = [];
+  } else {
+    let html = `<b>${changed.length} offset(s) differ:</b>`;
+    window.__changedOffsets = [];
+    changed.forEach(i => {
+      const per = parsed.map(a => (a[i] !== undefined ? hex(a[i]) : "—"));
+      const u16 = parsed.map(a => (a[i] !== undefined && a[i+1] !== undefined ? a[i] | (a[i+1] << 8) : "—"));
+      const u32 = parsed.map(a => (a[i+3] !== undefined ? a[i] | (a[i+1]<<8) | (a[i+2]<<16) | (a[i+3]<<24) : "—"));
+      window.__changedOffsets.push(i);
+      html += `<div class="chgrow"><span class="off">+0x${hex(i)}</span><span>${per.join(" / ")}</span> <span class="u16">u16LE: ${u16.join(" / ")} · u32LE: ${u32.join(" / ")}</span></div>`;
+    });
+    sum.innerHTML = html;
+  }
+}
+$("copyDiff").addEventListener("click", () => {
+  const list = window.__changedOffsets || [];
+  if (!list.length) { log("No changed offsets to copy", "warn"); return; }
+  const txt = list.map(i => `0x${hex(i)}: ${slots.map(s => { try { return hex(slotBytes(s)[i] ?? -1); } catch (e) { return "?"; } }).join(" ")}`).join("\n");
+  navigator.clipboard.writeText(txt).then(() => log("Copied changed offsets to clipboard", "ok"));
+});
+
+/* ============================== editor ================================= */
+function renderEditor() {
+  const grid = $("editorGrid");
+  grid.innerHTML = "";
+  const dpiOffs = new Set(scanDpi(editor).map(r => r.off));
+  for (let i = 0; i < editor.length; i++) {
+    if (i > 0 && i % 8 === 0) {
+      const sep = document.createElement("div");
+      sep.className = "bytegap";
+      grid.appendChild(sep);
+    }
+    const cell = document.createElement("input");
+    cell.type = "text";
+    cell.maxLength = 2;
+    cell.value = hex(editor[i]);
+    cell.className = "hexcell";
+    cell.dataset.i = i;
+    if (i >= activeSel && i <= activeSel + 1) cell.classList.add("sel");
+    if (editorRef[i] !== undefined && editorRef[i] !== editor[i]) cell.classList.add("diff");
+    if (dpiOffs.has(i)) cell.classList.add("dpi");
+    cell.addEventListener("input", () => onCellInput(i, cell));
+    cell.addEventListener("focus", () => { activeSel = i; renderEditorKeepFocus(i); });
+    cell.addEventListener("keydown", e => {
+      if (e.key === "Backspace" && cell.value === "") { e.preventDefault(); removeByte(i); }
+    });
+    grid.appendChild(cell);
+  }
+  $("editorMeta").textContent = `editor: ${fmtCount(editor)}`;
+  updateSelInfo();
+  updateWarn();
+  decodeReport();
+  persist();
+}
+function renderEditorKeepFocus(i) {
+  renderEditor();
+  const cells = $("editorGrid").querySelectorAll(".hexcell");
+  if (cells[i]) cells[i].focus();
+}
+function onCellInput(i, cell) {
+  const v = cell.value.toUpperCase().replace(/[^0-9A-F]/g, "");
+  cell.value = v;
+  if (v.length === 2) {
+    editor[i] = parseInt(v, 16);
+    renderEditorKeepFocus(i + 1); // commit, re-render, move focus forward
+  }
+}
+function removeByte(i) {
+  editor.splice(i, 1);
+  if (editor.length === 0) editor = [0x00, 0x00];
+  activeSel = Math.min(activeSel, editor.length - 2);
+  renderEditor();
+}
+function updateWarn() {
+  const w = $("editorWarn");
+  let msg = "";
+  if (editor.length !== EXPECTED) msg += `⚠ payload is ${editor.length} bytes, descriptor expects ${EXPECTED}. `;
+  const last = editor[editor.length - 1];
+  if (last === 0x85) msg += "Trailing byte 0x85 (possible checksum/status) left untouched by default — recompute before sending if it really is a checksum.";
+  w.textContent = msg;
+}
+function updateSelInfo() {
+  const s = activeSel;
+  const u16 = editor[s] !== undefined && editor[s+1] !== undefined ? editor[s] | (editor[s+1] << 8) : null;
+  $("selInfo").textContent = `offset ${hex(s)}..${hex(s+1)} → u16LE = ${u16 != null ? u16 : "—"} (0x${u16 != null ? hex(u16,4) : "—"})`;
+  $("u16val").value = u16 != null ? u16 : "";
+}
+function setActiveU16(val) {
+  val = Math.max(0, Math.min(0xffff, Math.round(val)));
+  if (activeSel + 1 >= editor.length) while (editor.length < activeSel + 2) editor.push(0x00);
+  editor[activeSel] = val & 0xff;
+  editor[activeSel + 1] = (val >> 8) & 0xff;
+  renderEditor();
+}
+$("insByte").addEventListener("click", () => { editor.splice(activeSel, 0, 0x00); renderEditor(); });
+$("delByte").addEventListener("click", () => removeByte(activeSel));
+$("setU16").addEventListener("click", () => { const v = parseInt($("u16val").value, 10); if (!Number.isNaN(v)) setActiveU16(v); });
+
+/* ---- structured DPI writer (uses the decoded encoding) ---- */
+function writeDpi(stage, dpi) {
+  const off = 7 + stage, offHi = 15 + stage;
+  if (dpi % 50 !== 0) { log("DPI must be a multiple of 50 (got " + dpi + ")", "err"); return; }
+  if (editor.length <= offHi) { log("editor too short for DPI stage byte", "err"); return; }
+  const v = dpi / 50 - 1;
+  editor[off] = v & 0xff;
+  editor[offHi] = (v >> 8) & 0xff;
+  fixChecksum();
+  renderEditor();
+  log(`DPI stage ${stage} = ${dpi}  (low ${hex(v & 0xff)}${(v >> 8) ? " + carry " + hex((v >> 8) & 0xff) : ""})`, "ok");
+}
+$("setDpi").addEventListener("click", () => {
+  const stage = +$("dpiStage").value;
+  const dpi = parseInt($("dpiValue").value, 10);
+  if (!Number.isNaN(dpi)) writeDpi(stage, dpi);
+});
+document.querySelectorAll("#dpiQuick button").forEach(b => b.addEventListener("click", () => {
+  $("dpiValue").value = b.dataset.dpi;
+  writeDpi(+$("dpiStage").value, +b.dataset.dpi);
+}));
+
+/* ---- checksum (decoded from captures) ---- */
+function fixChecksum() {
+  let ok = false;
+  try {
+    const rid = currentReportId();
+    if (rid === 0x04 && editor.length >= 51) {
+      const s = editor.slice(0, 49).reduce((a, b) => a + b, 0);
+      editor[50] = (s + 0xC7) & 0xff;
+      editor[49] = (editor.slice(1, 49).reduce((a, b) => a + b, 0) >> 8) & 0xff;
+      ok = true;
+    }
+    else if (rid === 0x05 && editor.length >= 12) { editor[11] = (editor.slice(0, 10).reduce((a, b) => a + b, 0) + 0xF0) & 0xff; ok = true; }
+    else if (rid === 0x06 && editor.length >= 4) { editor[3] = (0xFF - editor[2]) & 0xff; ok = true; }
+  } catch (e) {}
+  renderEditor();
+  return ok;
+}
+$("fixChk").addEventListener("click", () => {
+  if (fixChecksum()) log("Checksum fixed", "ok");
+  else log("Cannot fix checksum for this report id / payload length", "err");
+});
+
+/* ---- live decoder ---- */
+function decodeReport() {
+  const out = $("decodeOut");
+  if (!out) return;
+  let html = '<span class="muted">(decodes the editor bytes, no device needed)</span>';
+  try {
+    const rid = currentReportId();
+    const p = editor;
+    if (rid === 0x04) {
+      if (p.length >= 51) {
+        const dpi = [0, 1, 2, 3, 4, 5].map(i => ((p[7 + i] + (p[15 + i] << 8)) + 1) * 50);
+        const hi = (p.slice(1, 49).reduce((a, b) => a + b, 0) >> 8) & 0xff;
+        const lo = (p.slice(0, 49).reduce((a, b) => a + b, 0) + 0xC7) & 0xff;
+        const ok = p[49] === hi && p[50] === lo;
+        html = `LOD=${p[2] ? 2 : 1}mm · ripple=${p[3]} · angle=${p[5]} · motion=${p[6]} · active stage=${p[23] - 1}<br>` +
+               `DPI stages: <b>${dpi.join(", ")}</b><br>` +
+               `checksum[49:50]=${hex(p[49])}${hex(p[50])} — ${ok ? '<span class="ok">OK</span>' : '<span class="err">BAD (expected ' + hex(hi) + hex(lo) + ')</span>'}`;
+      } else html = '<span class="err">report 0x04 needs 51 bytes</span>';
+    } else if (rid === 0x05) {
+      if (p.length >= 12) {
+        const cs = (p.slice(0, 10).reduce((a, b) => a + b, 0) + 0xF0) & 0xff;
+        html = `sleep=${p[8] / 2} min · key_response=${p[9] * 2} ms · deep_sleep bytes ${hex(p[3])} ${hex(p[4])} / ${hex(p[10])} (partial)<br>` +
+               `checksum[11]=${hex(p[11])} — ${p[11] === cs ? '<span class="ok">OK</span>' : '<span class="err">BAD (expected ' + hex(cs) + ')</span>'}`;
+      } else html = '<span class="err">report 0x05 needs 12 bytes</span>';
+    } else if (rid === 0x06) {
+      if (p.length >= 4) {
+        const poll = ({ 1: 1000, 2: 500, 3: 250, 4: 125 }[p[2]] || ("?" + hex(p[2])));
+        html = `polling=${poll} Hz (code ${hex(p[2])}, check ${hex(p[3])})`;
+      } else html = '<span class="err">report 0x06 needs 9 bytes</span>';
+    } else html = '<span class="muted">no decoder for report ' + hex(rid) + '</span>';
+  } catch (e) { html = '<span class="err">' + e.message + '</span>'; }
+  out.innerHTML = html;
+}
+
+/* import / baseline / clear */
+$("importBtn").addEventListener("click", () => {
+  try { editor = hexToBytes($("pasteHex").value); editorRef = editor.slice(); activeSel = 0; renderEditor(); log(`Imported ${editor.length} bytes`, "ok"); }
+  catch (e) { log("Import error: " + e.message, "err"); }
+});
+$("resetBaseline").addEventListener("click", () => { editor = BASELINE.slice(); editorRef = BASELINE.slice(); activeSel = 0; renderEditor(); log("Loaded captured baseline", "ok"); });
+$("clearEditor").addEventListener("click", () => { editor = [0, 0]; editorRef = []; activeSel = 0; renderEditor(); });
+
+/* ============================== scanner ================================ */
+function scanDpi(arr) {
+  const out = [];
+  for (let i = 0; i + 1 < arr.length; i++) {
+    const u16 = arr[i] | (arr[i+1] << 8);
+    const u32 = i + 3 < arr.length ? arr[i] | (arr[i+1]<<8) | (arr[i+2]<<16) | (arr[i+3]<<24) : null;
+    if (u16 >= 50 && u16 <= 26000 && u16 % 50 === 0) out.push({ off: i, kind: "u16", val: u16 });
+    if (u32 != null && u32 >= 50 && u32 <= 26000 && u32 % 50 === 0) out.push({ off: i, kind: "u32", val: u32 });
+  }
+  // dedupe by offset (u32 often shadows u16); prefer showing both but avoid dup noise
+  const seen = new Map();
+  for (const r of out) {
+    if (!seen.has(r.off) || seen.get(r.off).kind === "u32") seen.set(r.off, r);
+  }
+  return [...seen.values()].sort((a, b) => a.off - b.off);
+}
+$("scanBtn").addEventListener("click", () => {
+  const res = scanDpi(editor);
+  const box = $("dpiCandidates");
+  if (!res.length) { box.innerHTML = "<span class='muted'>No LE u16/u32 in DPI range found in the current editor payload.</span>"; return; }
+  let html = "<table><tr><th>offset</th><th>kind</th><th>value</th><th>bytes</th></tr>";
+  res.forEach(r => {
+    html += `<tr data-off="${r.off}"><td>0x${hex(r.off)}</td><td>${r.kind}</td><td><b>${r.val}</b></td><td>${bytesToHex(editor.slice(r.off, r.off + (r.kind === "u16" ? 2 : 4)))}</td></tr>`;
+  });
+  html += "</table><div class='sectionNote'>Click a row to select that range in the editor.</div>";
+  box.innerHTML = html;
+  box.querySelectorAll("tr[data-off]").forEach(tr => tr.addEventListener("click", () => {
+    activeSel = +tr.dataset.off; renderEditorKeepFocus(activeSel);
+  }));
+  log(`DPI scan: ${res.length} candidate(s)`, "");
+});
+
+/* ============================== persistence ============================ */
+function persist() {
+  try {
+    localStorage.setItem("x3tool", JSON.stringify({
+      slots: slots.map(s => ({ name: s.name, hex: s.hex, strip: s.strip })),
+      editorHex: bytesToHex(editor),
+      editorRefHex: bytesToHex(editorRef),
+      reportId: $("reportId").value,
+      activeSel,
+    }));
+  } catch (e) {}
+}
+function restore() {
+  try {
+    const raw = localStorage.getItem("x3tool");
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (Array.isArray(d.slots) && d.slots.length) slots = d.slots;
+    if (d.editorHex) { editor = hexToBytes(d.editorHex); activeSel = d.activeSel || 0; }
+    if (d.editorRefHex) editorRef = hexToBytes(d.editorRefHex);
+    if (d.reportId) $("reportId").value = d.reportId;
+  } catch (e) {}
+}
+$("exportBtn").addEventListener("click", () => {
+  const d = { slots: slots.map(s => ({ name: s.name, hex: s.hex, strip: s.strip })), editorHex: bytesToHex(editor) };
+  $("jsonArea").style.display = "block";
+  $("jsonArea").value = JSON.stringify(d, null, 2);
+});
+$("importJsonBtn").addEventListener("click", () => {
+  try {
+    const d = JSON.parse($("jsonArea").value);
+    if (Array.isArray(d.slots) && d.slots.length) slots = d.slots;
+    if (d.editorHex) { editor = hexToBytes(d.editorHex); editorRef = editor.slice(); activeSel = 0; }
+    renderSlots(); renderEditor(); log("Imported JSON", "ok");
+  } catch (e) { log("JSON import error: " + e.message, "err"); }
+});
+
+/* ============================== wiring ================================= */
+$("connectBtn").addEventListener("click", connect);
+$("anyBtn").addEventListener("click", connectAny);
+$("diagBtn").addEventListener("click", dumpCollections);
+$("disconnectBtn").addEventListener("click", disconnect);
+$("sendBtn").addEventListener("click", () => sendReport(editor));
+$("readBtn").addEventListener("click", readReport);
+$("clearLog").addEventListener("click", () => { reportLog.innerHTML = ""; });
+$("reportId").addEventListener("change", () => { persist(); decodeReport(); });
+
+/* init */
+if (!("hid" in navigator)) {
+  banner("⚠ WebHID is not available in this browser/context. Serve this page over <b>localhost</b> or <b>HTTPS</b> and use <b>Chrome / Edge</b>.", "warn");
+} else {
+  banner("Ready. Click Connect and select the X3 mouse.", "info");
+}
+restore();
+renderSlots();
+editorRef = editorRef.length ? editorRef : editor.slice();
+renderEditor();
+log(`Baseline loaded: ${fmtCount(BASELINE)} (from README capture). Note: capture shows ${BASELINE.length} bytes; descriptor expects ${EXPECTED} — watch for a possible missing byte.`, "warn");
+log("WebHID " + ("hid" in navigator ? "available" : "NOT available"), "");
+</script>
+</body>
+</html>

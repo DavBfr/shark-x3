@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATTACK SHARK X3 — Config</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2330; --border: #2b3442;
+    --text: #e6edf3; --muted: #8b98a9; --accent: #58a6ff; --accent2: #1f6feb;
+    --ok: #3fb950; --warn: #d29922; --err: #f85149; --on: #238636;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    background: linear-gradient(180deg, #10161f, #0d1117);
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header .sub { color: var(--muted); font-size: 12px; margin: 2px 0 0; }
+  .status {
+    margin-left: auto; padding: 6px 14px; border-radius: 999px; font-size: 13px;
+    border: 1px solid var(--border); color: var(--muted); display: flex; align-items: center; gap: 8px;
+  }
+  .status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .status.on { color: var(--ok); border-color: #2ea04366; }
+  .status.on .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .status.off .dot { background: var(--muted); }
+  main { max-width: 1080px; margin: 0 auto; padding: 20px 24px 60px; }
+  .banner { padding: 10px 14px; border-radius: 8px; margin: 10px 0; font-size: 13px; }
+  .banner.warn { background: #2d2410; border: 1px solid #5c4a1a; color: var(--warn); }
+  .banner.err  { background: #2d1418; border: 1px solid #5c1f26; color: var(--err); }
+  .banner.info { background: #101e33; border: 1px solid #1f4370; color: var(--accent); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; margin: 14px 0;
+  }
+  .card h2 { margin: 0 0 14px; font-size: 14px; letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
+  .grid { display: grid; gap: 12px; }
+  .grid.dpi { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .grid.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .stage {
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 12px;
+  }
+  .stage.active { border-color: var(--accent2); box-shadow: 0 0 0 1px var(--accent2) inset; }
+  .stage .row1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .stage .row1 b { font-size: 13px; }
+  .stage .row1 label { color: var(--muted); font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+  .stage input[type=number] {
+    width: 100%; background: #0d1117; color: var(--text); border: 1px solid var(--border);
+    border-radius: 7px; padding: 7px 8px; font-size: 14px; font-family: inherit;
+  }
+  .stage input[type=range] { width: 100%; margin-top: 10px; accent-color: var(--accent2); }
+  .stage .enc { color: var(--muted); font-size: 11px; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; }
+  .field { margin: 10px 0; }
+  .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .field input[type=number], .field select {
+    width: 100%; background: #0d1117; color: var(--text); border: 1px solid var(--border);
+    border-radius: 7px; padding: 8px; font-size: 14px;
+  }
+  .toggle { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+  .toggle span { font-size: 13.5px; }
+  .toggle small { display: block; color: var(--muted); font-size: 11.5px; }
+  /* switch */
+  .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex: 0 0 auto; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; cursor: pointer; inset: 0; background: #30363d; border-radius: 999px;
+    transition: .2s;
+  }
+  .slider:before {
+    content: ""; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: .2s;
+  }
+  .switch input:checked + .slider { background: var(--on); }
+  .switch input:checked + .slider:before { transform: translateX(20px); }
+  .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  button {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 18px; font-size: 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary {
+    background: var(--accent2); border-color: var(--accent2); color: #fff; font-weight: 600;
+  }
+  button.primary:hover { background: #245eae; color: #fff; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .logbox {
+    background: #0a0d13; border: 1px solid var(--border); border-radius: 10px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px; padding: 12px;
+    height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 10px;
+  }
+  .logbox .ok { color: var(--ok); } .logbox .err { color: var(--err); }
+  .logbox .warn { color: var(--warn); } .logbox .send { color: var(--accent); }
+  .logbox .t { color: var(--muted); }
+  .hint { color: var(--muted); font-size: 12px; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #21262d; color: var(--muted); }
+  a { color: var(--accent); }
+  @media (max-width: 640px) { header .status { margin-left: 0; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🦈 ATTACK SHARK X3 · Config</h1>
+    <div class="sub">WebHID configuration for the X3 gaming mouse — report 0x04 / 0x05 / 0x06</div>
+  </div>
+  <div class="status off" id="status"><span class="dot"></span><span id="statusText">Not connected</span></div>
+</header>
+
+<main>
+  <div id="banner"></div>
+
+  <div class="card">
+    <h2>Connection</h2>
+    <div class="actions">
+      <button id="connectBtn" class="primary">🔌 Connect mouse</button>
+      <button id="disconnectBtn" disabled>Disconnect</button>
+      <span class="hint" id="devHint">WebHID · VID 0x1d57 · PID 0xfa61</span>
+    </div>
+    <div id="readNote" class="hint" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>DPI stages <span class="pill">6 stages · 50 – 26000</span></h2>
+    <div class="grid dpi" id="dpiGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Performance &amp; power</h2>
+    <div class="grid two">
+      <div>
+        <div class="field">
+          <label>Polling rate</label>
+          <select id="polling">
+            <option value="125">125 Hz</option>
+            <option value="250">250 Hz</option>
+            <option value="500">500 Hz</option>
+            <option value="1000" selected>1000 Hz</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Lift-off distance</label>
+          <select id="lod">
+            <option value="1" selected>1 mm</option>
+            <option value="2">2 mm</option>
+          </select>
+        </div>
+        <div class="toggle"><span>Ripple control<small>smooths micro-movements</small></span><label class="switch"><input type="checkbox" id="ripple"><span class="slider"></span></label></div>
+        <div class="toggle"><span>Angle snap<small>straightens diagonal lines</small></span><label class="switch"><input type="checkbox" id="angle"><span class="slider"></span></label></div>
+        <div class="toggle"><span>Motion sync<small>synchronizes X/Y sampling</small></span><label class="switch"><input type="checkbox" id="motion"><span class="slider"></span></label></div>
+      </div>
+      <div>
+        <div class="field">
+          <label>Sleep time (minutes, 0.5 steps)</label>
+          <input type="number" id="sleep" min="0.5" max="30" step="0.5" value="2">
+        </div>
+        <div class="field">
+          <label>Deep sleep (minutes — only 10 / 25 / 60 verified)</label>
+          <select id="deep">
+            <option value="10" selected>10 min</option>
+            <option value="25">25 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Key response time (ms)</label>
+          <input type="number" id="key" min="1" max="50" step="1" value="6">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Apply</h2>
+    <div class="actions">
+      <button id="applyBtn" class="primary" disabled>✅ Apply to mouse</button>
+      <button id="resetBtn">Reset to defaults</button>
+      <button id="saveBtn">Save config</button>
+      <button id="loadBtn">Load config</button>
+      <input type="file" id="loadFile" accept="application/json" hidden>
+    </div>
+    <div class="logbox" id="log"></div>
+  </div>
+
+</main>
+
+<script>
+"use strict";
+
+/* ============================ protocol ============================ */
+const VID = 0x1d57, PID = 0xfa61;
+const RID_CFG = 0x04, RID_POWER = 0x05, RID_POLL = 0x06;
+
+/* report 0x04 (51 B) */
+const O_LOD=2, O_RIPPLE=3, O_ANGLE=5, O_MOTION=6, O_DPILO=7, O_DPIHI=15, O_ACTIVE=23, O_CHKHI=49, O_CHKLO=50;
+const POLL_CODE = { 1000:0x01, 500:0x02, 250:0x03, 125:0x04 };   // 250/125 assumed
+const DEEP_MAP = { 10:[0x03,0xa8,0x01], 25:[0x13,0x98,0x01], 60:[0x33,0xc8,0x02] };
+
+/* baseline payloads (captured, verified) */
+const BASE_04 = [
+  0x38,0x01,0x00,0x00,0x3f,0x00,0x00,0x0e,0x18,0x35,0x63,0xc7,0x8f,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x01,0xff,0x00,0x00,0x00,
+  0xff,0x00,0x00,0x00,0xff,0xff,0xff,0x00,0x00,0xff,0xff,0xff,0x00,0xff,0xff,
+  0x40,0x00,0xff,0xff,0xff,0x01,0x0f,0x89
+];
+const BASE_05 = [0x0f,0x01,0x00,0x03,0xa8,0x00,0x00,0xff,0x09,0x03,0x01,0xb6];
+const BASE_06 = [0x09,0x01,0x01,0xfe,0x00,0x00,0x00,0x00,0x00];
+
+const $ = id => document.getElementById(id);
+
+/* default profile (from the captured baseline) */
+const DEFAULTS = {
+  dpi: [750, 1250, 2700, 5000, 10000, 20000],
+  active: 0,
+  polling: 1000,
+  lod: 1,
+  ripple: false,
+  angle: false,
+  motion: false,
+  sleep: 2,
+  deep: 10,
+  key: 6,
+};
+
+let state = JSON.parse(JSON.stringify(DEFAULTS));
+let device = null;
+
+/* ============================ helpers ============================ */
+const sum = a => a.reduce((x, y) => x + y, 0);
+const hex = (n, w = 2) => n.toString(16).toUpperCase().padStart(w, "0");
+const bytesHex = a => a.map(b => hex(b)).join(" ");
+
+function log(msg, type = "") {
+  const d = new Date();
+  const line = document.createElement("div");
+  line.innerHTML = `<span class="t">[${d.toLocaleTimeString()}]</span> <span class="${type}">${msg}</span>`;
+  $("log").appendChild(line);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+function banner(msg, type) { $("banner").innerHTML = `<div class="banner ${type}">${msg}</div>`; }
+
+/* build the 51-byte report 0x04 from the current profile + dual checksum */
+function build04() {
+  const p = BASE_04.slice();
+  for (let i = 0; i < 6; i++) {
+    const v = state.dpi[i] / 50 - 1;
+    p[O_DPILO + i] = v & 0xff;
+    p[O_DPIHI + i] = (v >> 8) & 0xff;
+  }
+  p[O_LOD] = state.lod === 2 ? 1 : 0;
+  p[O_RIPPLE] = state.ripple ? 1 : 0;
+  p[O_ANGLE] = state.angle ? 1 : 0;
+  p[O_MOTION] = state.motion ? 1 : 0;
+  p[O_ACTIVE] = state.active + 1;
+  p[O_CHKHI] = (sum(p.slice(1, 49)) >> 8) & 0xff;
+  p[O_CHKLO] = (sum(p.slice(0, 49)) + 0xC7) & 0xff;
+  return p;
+}
+function build05() {
+  const p = BASE_05.slice();
+  p[8] = Math.round(state.sleep * 2);
+  p[9] = Math.round(state.key / 2);
+  const d = DEEP_MAP[state.deep] || DEEP_MAP[10];
+  p[3] = d[0]; p[4] = d[1]; p[10] = d[2];
+  p[11] = (sum(p.slice(0, 10)) + 0xF0) & 0xff;
+  return p;
+}
+function build06() {
+  const code = POLL_CODE[state.polling] || 0x01;
+  return [0x09, 0x01, code, (0xFF - code) & 0xff, 0, 0, 0, 0, 0];
+}
+function parse04(p) {
+  if (p.length < 51) return null;
+  const dpi = [0, 1, 2, 3, 4, 5].map(i => ((p[O_DPILO + i] + (p[O_DPIHI + i] << 8)) + 1) * 50);
+  return {
+    dpi, active: p[O_ACTIVE] - 1,
+    lod: p[O_LOD] ? 2 : 1, ripple: !!p[O_RIPPLE], angle: !!p[O_ANGLE], motion: !!p[O_MOTION],
+  };
+}
+
+/* ============================ UI ============================ */
+function renderDpiGrid() {
+  const g = $("dpiGrid");
+  g.innerHTML = "";
+  state.dpi.forEach((val, i) => {
+    const card = document.createElement("div");
+    card.className = "stage" + (i === state.active ? " active" : "");
+    const enc = (() => { const v = val / 50 - 1; return hex(v & 0xff) + (v > 255 ? " " + hex((v >> 8) & 0xff) : ""); })();
+    card.innerHTML = `
+      <div class="row1">
+        <b>Stage ${i}</b>
+        <label><input type="radio" name="active" value="${i}" ${i === state.active ? "checked" : ""}> active</label>
+      </div>
+      <input type="number" min="50" max="26000" step="50" value="${val}" data-stage="${i}" class="dpiNum">
+      <input type="range" min="50" max="26000" step="50" value="${val}" data-stage="${i}" class="dpiRange">
+      <div class="enc">byte: ${enc}</div>`;
+    g.appendChild(card);
+  });
+  g.querySelectorAll(".dpiNum").forEach(inp => inp.addEventListener("input", () => {
+    let v = parseInt(inp.value, 10);
+    if (Number.isNaN(v)) return;
+    v = Math.min(26000, Math.max(50, Math.round(v / 50) * 50));
+    state.dpi[+inp.dataset.stage] = v;
+    renderDpiGrid();
+  }));
+  g.querySelectorAll(".dpiRange").forEach(inp => inp.addEventListener("input", () => {
+    state.dpi[+inp.dataset.stage] = parseInt(inp.value, 10);
+    renderDpiGrid();
+  }));
+  g.querySelectorAll("input[name=active]").forEach(r => r.addEventListener("change", () => {
+    state.active = +r.value;
+    renderDpiGrid();
+  }));
+}
+function renderControls() {
+  $("polling").value = state.polling;
+  $("lod").value = state.lod;
+  $("ripple").checked = state.ripple;
+  $("angle").checked = state.angle;
+  $("motion").checked = state.motion;
+  $("sleep").value = state.sleep;
+  $("deep").value = state.deep;
+  $("key").value = state.key;
+}
+
+/* ============================ connection ============================ */
+async function connect() {
+  if (!("hid" in navigator)) {
+    banner("WebHID is not available. Open this page over <b>localhost</b> or <b>HTTPS</b> in Chrome / Edge.", "err");
+    return;
+  }
+  try {
+    const devs = await navigator.hid.requestDevice({ filters: [{ vendorId: VID, productId: PID }] });
+    if (!devs.length) return;
+    device = devs[0];
+    await device.open();
+    setStatus(true);
+    log("Connected: " + (device.productName || "USB Gaming Mouse"), "ok");
+
+    const hasCfg = device.collections && device.collections.some(c =>
+      (c.featureReports || []).some(r => r.reportId === RID_CFG));
+    if (!hasCfg) {
+      banner("⚠ Report 0x04 is <b>not exposed</b> to WebHID on this OS (Windows hides the config interface). Use <code>x3ctl.py</code> instead.", "warn");
+      $("applyBtn").disabled = true;
+      return;
+    }
+    banner("Connected — report 0x04 reachable. Now edit settings and press Apply.", "info");
+
+    // try to read the current config (many units time out; that's fine)
+    $("readNote").textContent = "Reading current config…";
+    try {
+      const dv = await withTimeout(device.receiveFeatureReport(RID_CFG), 3000);
+      const p = Array.from(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength));
+      const parsed = parse04(p);
+      if (parsed) {
+        state.dpi = parsed.dpi; state.active = parsed.active;
+        state.lod = parsed.lod; state.ripple = parsed.ripple;
+        state.angle = parsed.angle; state.motion = parsed.motion;
+        renderDpiGrid(); renderControls();
+        $("readNote").textContent = "Loaded current DPI/LOD/flag settings from the mouse.";
+        log("Read current config: " + parsed.dpi.join(", "), "ok");
+      }
+    } catch (e) {
+      $("readNote").innerHTML = "Read timed out (normal for this device). The form starts from the last saved / default profile — re-enter your settings if they differ.";
+      log("Read failed (timeout) — using profile values.", "warn");
+    }
+    $("applyBtn").disabled = false;
+  } catch (e) {
+    banner("Connect failed: " + e.message, "err");
+  }
+}
+async function disconnect() {
+  if (device) { try { await device.close(); } catch (e) {} }
+  device = null;
+  setStatus(false);
+  $("applyBtn").disabled = true;
+  log("Disconnected", "warn");
+}
+function setStatus(on) {
+  const s = $("status");
+  s.className = "status " + (on ? "on" : "off");
+  $("statusText").textContent = on ? "Connected" : "Not connected";
+}
+function withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+}
+if ("hid" in navigator) {
+  navigator.hid.addEventListener("disconnect", e => { if (device && e.device === device) disconnect(); });
+}
+
+/* ============================ send ============================ */
+async function send(reportId, payload) {
+  log(`→ report 0x${hex(reportId)} (${payload.length} B): ${bytesHex(payload)}`, "send");
+  try {
+    await device.sendFeatureReport(reportId, Uint8Array.from(payload));
+    log("OK — written", "ok");
+    return true;
+  } catch (e) {
+    log("FAIL: " + e.message, "err");
+    return false;
+  }
+}
+async function apply() {
+  if (!device) { log("Not connected", "err"); return; }
+  banner("", "info");
+  log("Applying configuration…", "");
+  let ok = true;
+  ok = (await send(RID_CFG, build04())) && ok;
+  ok = (await send(RID_POLL, build06())) && ok;
+  ok = (await send(RID_POWER, build05())) && ok;
+  if (ok) {
+    banner("✅ Configuration applied to the mouse.", "info");
+    log("All reports written successfully.", "ok");
+  } else {
+    banner("⚠ Some reports failed to write — see log.", "warn");
+  }
+}
+
+/* ============================ persistence ============================ */
+function saveConfig() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "x3-config.json";
+  a.click();
+  log("Config saved.", "ok");
+}
+function loadConfig() { $("loadFile").click(); }
+$("loadFile").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    state = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), data);
+    renderDpiGrid(); renderControls();
+    log("Config loaded.", "ok");
+  } catch (err) { log("Invalid config file: " + err.message, "err"); }
+});
+
+/* ============================ wiring ============================ */
+$("connectBtn").addEventListener("click", connect);
+$("disconnectBtn").addEventListener("click", disconnect);
+$("applyBtn").addEventListener("click", apply);
+$("resetBtn").addEventListener("click", () => {
+  state = JSON.parse(JSON.stringify(DEFAULTS));
+  renderDpiGrid(); renderControls();
+  log("Reset to defaults.", "ok");
+});
+$("saveBtn").addEventListener("click", saveConfig);
+$("loadBtn").addEventListener("click", loadConfig);
+$("polling").addEventListener("change", e => state.polling = +e.target.value);
+$("lod").addEventListener("change", e => state.lod = +e.target.value);
+$("ripple").addEventListener("change", e => state.ripple = e.target.checked);
+$("angle").addEventListener("change", e => state.angle = e.target.checked);
+$("motion").addEventListener("change", e => state.motion = e.target.checked);
+$("sleep").addEventListener("change", e => state.sleep = Math.min(30, Math.max(0.5, +e.target.value || 2)));
+$("deep").addEventListener("change", e => state.deep = +e.target.value);
+$("key").addEventListener("change", e => state.key = Math.min(50, Math.max(1, Math.round(+e.target.value || 6))));
+
+/* ============================ init ============================ */
+if (!("hid" in navigator)) {
+  banner("⚠ WebHID is not available in this browser/context. Serve over <b>localhost</b> or <b>HTTPS</b> and use Chrome / Edge.", "warn");
+} else {
+  banner("Connect the mouse, then configure. Settings apply live via feature reports 0x04/0x05/0x06.", "info");
+}
+renderDpiGrid();
+renderControls();
+log("Ready. Click 'Connect mouse' and pick the X3.", "");
+</script>
+</body>
+</html>

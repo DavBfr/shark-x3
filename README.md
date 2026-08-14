@@ -1,0 +1,487 @@
+# ATTACK SHARK X3 HID Protocol Reverse-Engineering
+
+## Goal
+
+Reverse-engineer the ATTACK SHARK X3 USB configuration protocol so it can be configured from Linux without Windows/Wine.
+
+Primary goal: set arbitrary supported DPI values, especially **1000 DPI**.
+
+Potential future goals:
+
+* 6 DPI stages
+* polling rate
+* lift-off distance
+* key response time
+* ripple control
+* angle snap
+* motion sync
+* sleep/deep sleep
+* possibly RGB/battery/profile settings
+
+## Hardware / USB identity
+
+Linux identifies the mouse as:
+
+```text
+Bus 003 Device 004: ID 1d57:fa61 Xenta USB Gaming Mouse
+```
+
+USB VID/PID:
+
+```text
+VID = 0x1d57
+PID = 0xfa61
+```
+
+USB descriptors report:
+
+```text
+manufacturer: Beken
+product: USB Gaming Mouse
+```
+
+This is an ATTACK SHARK X3 / Beken-family device despite the generic Xenta/Beken USB identification.
+
+## HID interfaces
+
+Python `hid.enumerate()` produced:
+
+```text
+interface: 0 path: /dev/hidraw6 usage_page: 0x1 usage: 0x6
+interface: 1 path: /dev/hidraw5 usage_page: 0x1 usage: 0x2
+interface: 1 path: /dev/hidraw5 usage_page: 0x1 usage: 0x1
+interface: 2 path: /dev/hidraw4 usage_page: 0x1 usage: 0x80
+interface: 2 path: /dev/hidraw4 usage_page: 0xc usage: 0x1
+interface: 2 path: /dev/hidraw4 usage_page: 0xa usage: 0x0
+interface: 2 path: /dev/hidraw4 usage_page: 0xb usage: 0x0
+interface: 3 path: /dev/hidraw3 usage_page: 0x1 usage: 0x6
+```
+
+**Important:** `/dev/hidraw4` is interface 2 and is the configuration interface.
+
+## Relevant HID descriptor
+
+Interface 2 begins:
+
+```text
+05 01 09 80 A1 01
+85 01
+...
+85 02
+...
+85 03
+...
+85 04 95 33 B1 01
+85 05 95 0C B1 01
+85 06 95 08 B1 01
+85 07 95 07 B1 01
+85 08 95 3A B1 01
+85 09 95 3F B1 01
+85 0A 95 07 B1 01
+85 0B 95 07 B1 01
+85 0C 95 05 B1 01
+85 10 95 07 B1 01
+85 A0 95 07 B1 01
+85 22 95 83 B1 01
+85 23 95 83 B1 01
+85 24 95 07 B1 01
+85 25 95 0C B1 01
+85 26 95 08 B1 01
+85 27 95 07 B1 01
+85 28 95 83 B1 01
+85 29 95 80 B1 01
+85 2A 95 82 B1 01
+85 2B 95 07 B1 01
+85 2C 95 03 B1 01
+85 2D 95 66 B1 01
+85 2E 95 04 B1 01
+```
+
+These are HID Feature Reports.
+
+Report ID `0x04` is:
+
+```text
+95 33
+```
+
+= 51-byte payload.
+
+Including the report ID, the USB transfer is 52 bytes.
+
+## Important discovery: configuration write
+
+Using the Windows VM with USB passthrough + Wireshark/USBPcap, we captured an X3 configuration write.
+
+Wireshark identified:
+
+```text
+USBHID SET_REPORT Request
+```
+
+The relevant USB setup bytes were:
+
+```text
+21 09 04 03 02 00 34 00
+```
+
+Interpretation:
+
+```text
+0x21 = HID class, host-to-device
+0x09 = SET_REPORT
+0x04 = report ID 4
+0x03 = Feature report
+0x02 0x00 = interface 2
+0x34 0x00 = 52 bytes
+```
+
+This exactly matches the HID descriptor's report ID 4 / 51-byte payload.
+
+### Captured configuration payload
+
+The actual report data observed was:
+
+```text
+04 38 01 00 00 3f 00 00 0e 18 31 63 c7 8f
+00 00 00 00 00 00 01 00 00 01 ff 00 00 00
+ff 00 00 00 ff ff ff 00 00 ff ff ff 00 ff ff
+40 00 ff ff ff 01 0f 85
+```
+
+The first byte is the HID report ID `0x04`.
+
+The remaining 51 bytes are the configuration payload.
+
+## X3 software capabilities observed
+
+Official Windows configuration software exposes:
+
+* 6 DPI stages
+* DPI range 50–26000
+* DPI increment = 50
+* polling rate: 125 / 250 / 500 / 1000 Hz
+* sleep time
+* deep sleep time
+* lift-off distance: 1mm / 2mm
+* key response time slider
+* ripple control boolean
+* angle snap boolean
+* motion sync boolean
+* battery state / charging
+* button settings (may be Windows-side remapping)
+
+DPI values cannot be arbitrary integers; UI quantizes to 50-DPI increments. Therefore 1000 DPI is directly supported.
+
+## HID feature read attempt
+
+Python package uses newer API:
+
+```python
+hid.Device(...)
+```
+
+Opening `/dev/hidraw4` works.
+
+However, blindly calling:
+
+```python
+get_feature_report(1, 256)
+get_feature_report(2, 256)
+```
+
+returned:
+
+```text
+ioctl (GFEATURE): Connection timed out
+```
+
+Therefore do NOT blindly probe feature reports further.
+
+The captured Windows `SET_REPORT` is the reliable source of truth.
+
+## Next objective
+
+Perform differential captures to identify fields in report `0x04`.
+
+Recommended experiment:
+
+### Capture A
+
+Set DPI stage 1 = 750, Apply.
+
+Record the `SET_REPORT` payload.
+
+### Capture B
+
+Set DPI stage 1 = 800, Apply.
+
+Record the `SET_REPORT` payload.
+
+### Capture C
+
+Set DPI stage 1 = 1000, Apply.
+
+Record the `SET_REPORT` payload.
+
+Compare the three payloads byte-by-byte.
+
+Expected numeric representations to look for:
+
+```text
+750  = 0x02EE
+800  = 0x0320
+1000 = 0x03E8
+```
+
+Possible little-endian byte patterns:
+
+```text
+750  -> EE 02
+800  -> 20 03
+1000 -> E8 03
+```
+
+Do not assume this representation; confirm from differential captures.
+
+Once DPI is identified, repeat for:
+
+* polling 125 -> 1000
+* LOD 1mm -> 2mm
+* ripple OFF -> ON
+* angle snap OFF -> ON
+* motion sync OFF -> ON
+* key response minimum -> maximum
+
+## Desired final Linux implementation
+
+Prefer Python + `hidapi`.
+
+The target API should eventually be something like:
+
+```bash
+python3 x3ctl.py --dpi 1000
+```
+
+or:
+
+```bash
+python3 x3ctl.py --dpi-stage 1 --dpi 1000
+```
+
+The implementation should send HID Feature Report `0x04` through interface 2 (`/dev/hidraw4`) using the discovered 52-byte configuration structure.
+
+Potential Python API:
+
+```python
+import hid
+
+dev = hid.Device(path=b"/dev/hidraw4")
+dev.send_feature_report(config_bytes)
+dev.close()
+```
+
+However, **do not send modified reports yet**. First determine:
+
+1. field offsets
+2. encoding
+3. checksum/CRC
+4. whether the entire 51-byte structure must be rewritten
+5. whether an additional "save/apply" command is required
+
+The captured payload ends with:
+
+```text
+01 0f 85
+```
+
+The final byte `0x85` may be a checksum/CRC/status field, but this is unconfirmed.
+
+## Key reverse-engineering strategy
+
+Do NOT brute-force writes.
+
+Use Windows official software + USBPcap/Wireshark to capture controlled changes.
+
+For every experiment:
+
+1. Start capture.
+2. Change exactly one setting.
+3. Click Apply/Save.
+4. Stop capture.
+5. Extract the host -> device `SET_REPORT` request.
+6. Compare payloads byte-by-byte.
+7. Identify changed offsets.
+8. Test hypotheses only after enough differential evidence exists.
+
+The most important discovery so far is:
+
+**The X3 configuration software writes a 51-byte HID Feature Report ID `0x04` to HID interface 2.**
+
+That is the protocol entry point to reverse-engineer.
+
+## WebHID investigation tool
+
+`x3tool.html` is a self-contained WebHID page for reading/writing the device
+configuration and running the differential analysis described above.
+
+### Run it
+
+WebHID requires a secure context (localhost/HTTPS). Python is required:
+
+```powershell
+choco install python -y            # if not already installed
+py -m http.server 8000 --directory C:\Users\dad\Desktop\shark
+```
+
+Then open `http://localhost:8000/x3tool.html` in Chrome or Edge and click Connect.
+
+### End-user config page: `x3config.html`
+
+`x3config.html` is a friendly WebHID UI for day-to-day configuration — no hex
+knowledge needed. Same server: `http://localhost:8000/x3config.html`.
+
+* 6 DPI stages (50–26000, 50-step) with an "active stage" selector
+* polling rate (125/250/500/1000 Hz), lift-off distance, ripple, angle snap,
+  motion sync, sleep time, deep sleep (10/25/60), key response time
+* **Apply** sends feature reports `0x04` (DPI/flags), `0x05` (sleep/key) and
+  `0x06` (polling) with the correct dual checksums
+* tries to read the current config on connect (times out on most units — the
+  form then starts from the default/saved profile)
+* save/load config as JSON; settings are remembered in the page until reload
+
+**Verified on macOS/Chrome**: report `0x04` IS exposed over WebHID there, so the
+page works end-to-end. On Windows, WebHID hides the config interface — use
+`x3ctl.py` instead.
+
+
+### Features
+
+* Connect via WebHID (VID `0x1d57` / PID `0xfa61`); auto-detects config
+  interface 2 (usage 0x01/0x80) and shows expected report-`0x04` payload size.
+* **Dump collections**: lists every top-level collection WebHID actually exposes
+  (usage + all feature/input/output report IDs with sizes) and reports whether
+  report `0x04` is reachable. Use this when writes fail.
+* Raw terminal: send/read HID feature reports (report ID editable, default `04`,
+  dropdown of exposed IDs). Optionally send as an **OUTPUT report**.
+  Reads may time out on this device — expected.
+* Capture slots (A/B/C/...): paste one captured `SET_REPORT` payload per slot,
+  auto-strip the leading report-ID byte, see byte count vs descriptor-expected.
+* Diff engine: byte-by-byte comparison across slots with LE u16/u32
+  interpretation — highlights exactly which offsets changed between captures.
+* DPI/field scanner: finds every LE u16/u32 in the DPI range (50–26000, step 50)
+  in the current payload, so the DPI field can be located quickly.
+* Byte-grid editor: click a byte to select a 2-byte range, insert/delete bytes,
+  live diff-vs-baseline highlight.
+* **DPI writer**: stage + DPI input using the correct firmware encoding
+  (byte = DPI/50 − 1, carry for stage 5) with automatic checksum.
+* **Fix checksum** button (reports 0x04/0x05/0x06) and a live **Decoded report**
+  panel that interprets the current payload (DPI, LOD, flags, active stage,
+  sleep/key, polling).
+* Slots/editor persist to localStorage; export/import JSON.
+
+### IMPORTANT: WebHID on Windows does not see the config interface — use `x3ctl.py`
+
+Verified on Windows: WebHID connects to the mouse but the config collection
+(usage `0x01/0x80`) is **not** among the exposed collections, and sending
+feature report `0x04` fails with `Failed to write the feature report` (Chrome
+errors out when the report ID is not present in any exposed collection).
+
+**However, native `hidapi` reaches it.** `python3 x3ctl.py enumerate` shows
+Windows exposes interface 2 (`MI_02`) as four top-level collections; the config
+one is **`Col01`** (usage `0x01/0x80`, System Control) — the first collection in
+the interface-2 descriptor, and where report `0x04` lives.
+
+On Windows, the baseline write works:
+
+```powershell
+py x3ctl.py baseline     # → OK: write succeeded
+```
+
+Feature reads still time out (`read error`), matching the Linux GFEATURE
+timeout. WebHID may still expose the config interface on Linux (Chrome uses the
+same stack as `hidraw`, which shows all four interfaces), but the native tool
+now works on both OSes, so prefer it for the actual experiments.
+
+## Native fallback: `x3ctl.py` (Python + hidapi)
+
+`hidapi` enumerates every HID interface on both Windows and Linux, so it reaches
+the config collection even where WebHID cannot.
+
+```powershell
+pip install hidapi        # Trezor bindings (hid.device()) — also supports: pip install hid
+```
+
+```bash
+python3 x3ctl.py enumerate                    # find the config collection (Col01 on Windows)
+python3 x3ctl.py baseline                     # send the captured baseline as report 0x04 (VERIFIED works)
+python3 x3ctl.py read 04                      # try a feature read (times out on this device)
+python3 x3ctl.py send 04 38 01 00 00 3f ...   # send an arbitrary payload
+python3 x3ctl.py decode 04 <hex>              # interpret a captured payload
+python3 x3ctl.py set --dpi 1000               # set DPI on the active stage (multiple of 50)
+python3 x3ctl.py set --stage 1 --dpi 1000     # set DPI on a specific stage
+python3 x3ctl.py set --lod 2 --ripple 1 --angle 1 --motion 1
+python3 x3ctl.py set --polling 1000           # report 0x06
+python3 x3ctl.py set --sleep 4.5 --deep 25 --key 6   # report 0x05
+python3 x3ctl.py set --dpi 1000 --dry-run     # print payload without sending
+```
+
+`set` computes the checksum automatically. Use `--dry-run` to inspect the
+payload before sending.
+
+## Protocol decode (differential captures, 2026-08-14)
+
+Field maps below were derived from one-at-a-time captures (DPI, flags, polling,
+sleep/deep, key response). All are verified against the capture table.
+
+### Report `0x04` — main config (51-byte payload, report ID stripped)
+
+| offset | field                        | encoding                                           |
+| ------ | ---------------------------- | -------------------------------------------------- |
+| 0, 1   | header                       | `38 01` (constant)                                 |
+| 2      | lift-off distance            | 0 = 1 mm, 1 = 2 mm                                 |
+| 3      | ripple control               | 0/1                                                |
+| 4      | constant                     | `3f`                                               |
+| 5      | angle snap                   | 0/1                                                |
+| 6      | motion sync                  | 0/1                                                |
+| 7 + i  | DPI stage i, low byte        | `byte = (DPI/50 − 1) & 0xFF`                       |
+| 15 + i | DPI stage i, high/carry byte | `(DPI/50 − 1) >> 8` (nonzero only for DPI > 12800) |
+| 23     | active DPI stage             | 1-based (mode 0 → `01`, mode 3 → `04`)             |
+| 49     | checksum high                | `(sum of bytes 1..48) >> 8`                        |
+| 50     | checksum low                 | `(sum of bytes 0..48 + 0xC7) & 0xFF`               |
+
+DPI value = `((low | (high << 8)) + 1) * 50`.  Each stage is a 16-bit value:
+`750 → 0E 00`, `800 → 0F 00`, `1000 → 13 00`, `11600 → E7 00`,
+`1250 → 18 00`, `5000 → 63 00`, `10000 → C7 00`, `18100 → 69 01`,
+`20000 → 8F 01`, `26000 → 07 02`, `50 → 00 00`.
+
+### Report `0x05` — sleep / deep sleep / key response (12-byte payload)
+
+| offset   | field        | encoding                                                             |
+| -------- | ------------ | -------------------------------------------------------------------- |
+| 0, 1     | header       | `0f 01` (constant)                                                   |
+| 3, 4, 10 | deep sleep   | partial: 10 min → `03 a8`/`01`, 25 → `13 98`/`01`, 60 → `33 c8`/`02` |
+| 8        | sleep time   | minutes × 2 (2 min → `04`, 4.5 → `09`, 30 → `3C`)                    |
+| 9        | key response | ms ÷ 2 (6 ms → `03`, 24 → `0C`, 50 → `19`)                           |
+| 11       | checksum     | `(sum of bytes 0..9 + 0xF0) & 0xFF`                                  |
+
+### Report `0x06` — polling rate (9-byte payload)
+
+| offset | field        | encoding                                                            |
+| ------ | ------------ | ------------------------------------------------------------------- |
+| 0, 1   | header       | `09 01` (constant)                                                  |
+| 2      | polling code | 1000 → `01`, 500 → `02`, 250 → `03` (assumed), 125 → `04` (assumed) |
+| 3      | complement   | `0xFF − code`                                                       |
+| 4..8   | padding      | `00`                                                                |
+
+### Open questions
+
+* **Deep sleep**: mapping only captured at 10/25/60 min.
+* **Polling 125/250 codes**: only 500/1000 captured (1000 → `01`, 500 → `02`).
+
+## Native fallback: `x3ctl.py` details (RESOLVED)
+
+The original README capture was **50 bytes** after the report ID — it was
+missing a single `00` padding byte. The full 51-byte structure was confirmed by
+the differential capture table (52 bytes on the wire, matching the descriptor).
+The tools now use the verified 51-byte payload.

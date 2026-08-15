@@ -1,5 +1,9 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+# CMake >= 4 removed compatibility with projects declaring a minimum CMake
+# below 3.5. The hid plugin downloads the hidapi source (min < 3.5) at
+# configure time, so raise the floor to keep Windows builds working.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 project(shark_x3 LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change

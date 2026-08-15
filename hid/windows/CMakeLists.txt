@@ -1,6 +1,12 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.14)
 set(PROJECT_NAME "hid")
 project(${PROJECT_NAME} LANGUAGES CXX)
+
+# Opt into modern ExternalProject extraction timestamps to silence the CMP0135
+# developer warning under recent CMake (3.24+ / 4.x).
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
 set(HIDAPI_VERSION "0.11.2" CACHE STRING "Version of hidapi used")
 set(HIDAPI_ARCH "x64" CACHE STRING "Architecture of hidapi used")

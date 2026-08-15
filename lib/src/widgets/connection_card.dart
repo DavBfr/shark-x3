@@ -12,6 +12,7 @@ class ConnectionCard extends StatelessWidget {
     required this.onConnect,
     required this.onDisconnect,
     this.mouseAwake,
+    this.batteryPercent,
   });
 
   final bool connected;
@@ -23,6 +24,10 @@ class ConnectionCard extends StatelessWidget {
 
   /// null = no wireless status seen yet; otherwise awake/sleeping.
   final bool? mouseAwake;
+
+  /// Assumed battery percentage (from the 0x40 wireless-status report), or
+  /// null until the first report arrives. A candidate, not confirmed.
+  final int? batteryPercent;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +51,10 @@ class ConnectionCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
+                if (connected && batteryPercent != null) ...[
+                  _batteryChip(context),
+                  const SizedBox(width: 8),
+                ],
                 if (connected && mouseAwake != null) ...[
                   _awakeChip(context),
                   const SizedBox(width: 8),
@@ -92,6 +101,40 @@ class ConnectionCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Small battery chip showing the assumed charge from the 0x40
+  /// wireless-status report (a candidate, not confirmed).
+  Widget _batteryChip(BuildContext context) {
+    final theme = Theme.of(context);
+    final level = batteryPercent ?? 0;
+    final chipColor = level >= 50
+        ? const Color(0xFF43A047) // good
+        : level >= 20
+        ? const Color(0xFFF9A825) // getting low
+        : const Color(0xFFE53935); // low
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: chipColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: chipColor.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.battery_charging_full, size: 14, color: chipColor),
+          const SizedBox(width: 5),
+          Text(
+            '$level%',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: chipColor,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -173,6 +216,7 @@ Widget connectionCardAwakePreview() {
     productName: 'Attack Shark X3',
     statusMessage: '',
     mouseAwake: true,
+    batteryPercent: 70,
   );
 }
 
@@ -186,5 +230,6 @@ Widget connectionCardNotAwakePreview() {
     productName: 'Attack Shark X3',
     statusMessage: '',
     mouseAwake: false,
+    batteryPercent: 100,
   );
 }

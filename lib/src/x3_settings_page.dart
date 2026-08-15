@@ -41,6 +41,10 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
   /// null until the first 0x40 wireless-status report; then awake/sleeping.
   bool? _mouseAwake;
 
+  /// Latest battery candidate from the 0x40 wireless-status report (byte 4 ×
+  /// 10, e.g. 70/100), or null until the first report arrives.
+  int? _batteryPercent;
+
   /// If no 0x40 heartbeat arrives within this window, assume the mouse slept.
   static const _sleepTimeout = Duration(seconds: 6);
 
@@ -101,6 +105,7 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
     _sleepTimer?.cancel();
     _lastStatusAt = null;
     _mouseAwake = null;
+    _batteryPercent = null;
     _statusSub = _service.watchStatus().listen((report) {
       if (!mounted) return;
       var stageChanged = false;
@@ -111,6 +116,9 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
         if (report.kind == X3StatusKind.status) {
           _lastStatusAt = DateTime.now();
           _mouseAwake = true;
+          if (report.batteryPercent != null) {
+            _batteryPercent = report.batteryPercent;
+          }
         }
         // Follow the mouse's DPI button: sync the active-stage selection.
         final stage = report.dpiStage;
@@ -146,6 +154,7 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
       _connected = false;
       _reports.clear();
       _mouseAwake = null;
+      _batteryPercent = null;
       _lastStatusAt = null;
       _statusMessage =
           'Disconnected. Change settings any time — press '
@@ -281,6 +290,7 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
                           productName: _service.config?.productName ?? '',
                           statusMessage: _statusMessage,
                           mouseAwake: _mouseAwake,
+                          batteryPercent: _batteryPercent,
                           onConnect: () => _connect(),
                           onDisconnect: _disconnect,
                         ),

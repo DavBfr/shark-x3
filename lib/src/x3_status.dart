@@ -5,11 +5,11 @@
 /// decoded from live captures so far (2026-08-15):
 ///
 ///   `03 00 10 <1..6> 00`  → DPI stage changed (byte 3 = stage, 1-based)
-///   `03 10 40 01 <link>`  → wireless-link status — only sent over 2.4G
-///                           (stops while charging / wired). Byte 2 is a
-///                           link/state code (`0x40`), byte 4 fluctuates
-///                           (likely signal). No battery: values don't change
-///                           at 100% charge.
+///   `03 10 40 01 <b>`    → wireless-link status — only sent over 2.4G (stops
+///                           while charging / wired). Byte 2 is a link/state
+///                           code (`0x40`); byte 4 is a battery candidate in
+///                           10% steps: `0a` = 100%, `07` = 70% (matches the
+///                           Windows app reading 100% and Bluetooth 70%).
 ///   `03 10 50 xx 04`      → the mouse acknowledged a config write
 library;
 
@@ -18,7 +18,7 @@ enum X3StatusKind {
   /// `03 00 10 <stage> 00` — the active DPI stage changed.
   dpiStage,
 
-  /// `03 10 40 01 <link>` — wireless-link status (2.4G only).
+  /// `03 10 40 01 <b>` — wireless-link status; byte 4 = battery/10 candidate.
   status,
 
   /// `03 10 50 xx 04` — the mouse acknowledged a config write.
@@ -35,7 +35,7 @@ class X3StatusReport {
     required this.kind,
     this.dpiStage,
     this.stateByte,
-    this.linkValue,
+    this.batteryPercent,
     this.description = '',
   });
 
@@ -50,8 +50,9 @@ class X3StatusReport {
   /// For [X3StatusKind.status]: the byte-2 link/state code (`0x40`).
   final int? stateByte;
 
-  /// For [X3StatusKind.status]: the byte-4 link/signal value.
-  final int? linkValue;
+  /// For [X3StatusKind.status]: the byte-4 battery candidate in percent
+  /// (byte 4 × 10, so `0x0a` = 100%, `0x07` = 70%). Unconfirmed.
+  final int? batteryPercent;
 
   /// Short human-readable summary.
   final String description;
@@ -95,16 +96,17 @@ X3StatusReport? decodeStatusReport(List<int> raw) {
       description: 'Config write acknowledged',
     );
   }
-  // Wireless-link status: 03 10 40 01 <link> (2.4G only)
+  // Wireless-link status: 03 10 40 01 <battery/10> (2.4G only)
   if (raw.length >= 5 && raw[1] == 0x10 && raw[2] == 0x40) {
+    final battery = raw[4] * 10;
     return X3StatusReport(
       raw: List<int>.of(raw),
       kind: X3StatusKind.status,
       stateByte: raw[2],
-      linkValue: raw[4],
+      batteryPercent: battery,
       description:
-          'Wireless status — link 0x${raw[2].toRadixString(16).padLeft(2, '0')}'
-          ' · signal ${raw[4]}',
+          'Wireless status — battery ≈ $battery% (candidate) · '
+          'link 0x${raw[2].toRadixString(16).padLeft(2, '0')}',
     );
   }
   return X3StatusReport(

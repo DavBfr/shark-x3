@@ -11,6 +11,7 @@ class ConnectionCard extends StatelessWidget {
     required this.statusMessage,
     required this.onConnect,
     required this.onDisconnect,
+    this.mouseAwake,
   });
 
   final bool connected;
@@ -19,6 +20,9 @@ class ConnectionCard extends StatelessWidget {
   final String statusMessage;
   final VoidCallback onConnect;
   final VoidCallback onDisconnect;
+
+  /// null = no wireless status seen yet; otherwise awake/sleeping.
+  final bool? mouseAwake;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +46,10 @@ class ConnectionCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
+                if (connected && mouseAwake != null) ...[
+                  _awakeChip(context),
+                  const SizedBox(width: 8),
+                ],
                 if (connected)
                   OutlinedButton.icon(
                     onPressed: busy ? null : onDisconnect,
@@ -87,6 +95,36 @@ class ConnectionCard extends StatelessWidget {
       ),
     );
   }
+
+  /// Small "Awake" / "Sleeping" chip, inferred from the 0x40 wireless-status
+  /// heartbeat (absent for a while → sleeping).
+  Widget _awakeChip(BuildContext context) {
+    final theme = Theme.of(context);
+    final awake = mouseAwake == true;
+    final chipColor = awake ? const Color(0xFF43A047) : const Color(0xFFF9A825);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: chipColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: chipColor.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 8, color: chipColor),
+          const SizedBox(width: 5),
+          Text(
+            awake ? 'Awake' : 'Sleeping',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: chipColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 @Preview(name: 'Connection Card')
@@ -122,5 +160,31 @@ Widget connectionCardBusyPreview() {
     onDisconnect: () {},
     productName: '',
     statusMessage: 'connecting…',
+  );
+}
+
+@Preview(name: 'Connection Card (awake)')
+Widget connectionCardAwakePreview() {
+  return ConnectionCard(
+    connected: true,
+    busy: false,
+    onConnect: () {},
+    onDisconnect: () {},
+    productName: 'Attack Shark X3',
+    statusMessage: '',
+    mouseAwake: true,
+  );
+}
+
+@Preview(name: 'Connection Card (not awake)')
+Widget connectionCardNotAwakePreview() {
+  return ConnectionCard(
+    connected: true,
+    busy: false,
+    onConnect: () {},
+    onDisconnect: () {},
+    productName: 'Attack Shark X3',
+    statusMessage: '',
+    mouseAwake: false,
   );
 }

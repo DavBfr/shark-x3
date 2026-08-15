@@ -13,11 +13,14 @@ void main() {
       }
     });
 
-    test('periodic status report', () {
+    test('periodic status report decodes battery candidate', () {
       final r = decodeStatusReport([0x03, 0x10, 0x40, 0x01, 0x0a])!;
       expect(r.kind, X3StatusKind.status);
       expect(r.stateByte, 0x40);
-      expect(r.linkValue, 0x0a);
+      expect(r.batteryPercent, 100); // 0x0a = 100%
+
+      final r70 = decodeStatusReport([0x03, 0x10, 0x40, 0x01, 0x07])!;
+      expect(r70.batteryPercent, 70); // 0x07 = 70%
     });
 
     test('config-write ack report', () {

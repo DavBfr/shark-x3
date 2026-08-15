@@ -46,8 +46,9 @@ class StatusMonitor extends StatelessWidget {
             Text(
               'The mouse sends these small reports over the config interface. '
               'The hex line is raw; the note below it is what we’ve decoded so '
-              'far. The 0x40 wireless-status report only arrives over 2.4G '
-              '(not while charging).',
+              'far. In the 0x40 wireless-status report the last byte looks '
+              'like battery ÷ 10 (0a = 100%, 07 = 70%) — a candidate until '
+              'confirmed.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -75,7 +76,7 @@ class StatusMonitor extends StatelessWidget {
     final theme = Theme.of(context);
     final IconData icon = switch (r.kind) {
       X3StatusKind.dpiStage => Icons.speed,
-      X3StatusKind.status => Icons.radio,
+      X3StatusKind.status => Icons.battery_unknown,
       X3StatusKind.writeAck => Icons.check_circle_outline,
       X3StatusKind.unknown => Icons.help_outline,
     };
@@ -124,8 +125,8 @@ const List<X3StatusReport> _previewReports = [
     raw: [0x03, 0x10, 0x40, 0x01, 0x0a],
     kind: X3StatusKind.status,
     stateByte: 0x40,
-    linkValue: 0x0a,
-    description: 'Wireless status — link 0x40 · signal 10',
+    batteryPercent: 100,
+    description: 'Wireless status — battery ≈ 100% (candidate) · link 0x40',
   ),
   X3StatusReport(
     raw: [0x03, 0x10, 0x50, 0x01, 0x04],

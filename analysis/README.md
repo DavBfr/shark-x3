@@ -541,6 +541,87 @@ more capture (e.g. 45 min) to confirm.
 | 3      | complement   | `0xFF − code`                                                |
 | 4..8   | padding      | `00`                                                         |
 
+### Report `0x08` — button map / remapping (59 bytes total, incl. report ID)
+
+Seven captures from the official software's button settings (one action
+changed per capture). Structure verified against all seven:
+
+| offset | field       | encoding                                                  |
+| ------ | ----------- | --------------------------------------------------------- |
+| 0      | report ID   | `08`                                                      |
+| 1      | length      | `3b` = 59 (total packet length)                           |
+| 2      | sub-command | `01` (constant)                                           |
+| 3..56  | 18 rows × 3 | each row = `[code] 00 [param]` (first byte = action code) |
+| 57     | tail        | `00` (constant)                                           |
+| 58     | checksum    | `(sum of bytes 0..57 + 0xBC) & 0xFF`                      |
+
+Checksum verified on all seven captures (`cf c2 e4 c1 c2 c5 c4`).
+
+Rows and confirmed software-button mapping (from the "forward" baseline):
+
+| row    | code  | button (official software)               |
+| ------ | ----- | ---------------------------------------- |
+| 1      | 02    | button 1 (left) — default left click     |
+| 2      | 03    | button 2 (right) — default right click   |
+| 3      | 04    | button 3 (middle) — default middle click |
+| 4      | 0d    |                                          |
+| 5      | 3c    |                                          |
+| 6      | 0f    |                                          |
+| 7      | 06    | button 4 (side) — default forward        |
+| 8      | 05    | button 5 (side) — default back           |
+| 9      | 3c    |                                          |
+| 10..16 | 01 ×7 | default / no-change action               |
+| 17     | 0a    |                                          |
+| 18     | 09    |                                          |
+
+Decoded action codes (so far):
+
+| code | action         | code | action            |
+| ---- | -------------- | ---- | ----------------- |
+| 01   | default / none | 06   | forward           |
+| 02   | left click     | 07   | double click      |
+| 03   | right click    | 10   | fire (param `03`) |
+| 04   | middle click   | 25   | browser home      |
+| 05   | back           |      |                   |
+
+Diffs (note: the official software keeps state, so later captures accumulate
+earlier changes — e.g. the left/right swap from "1 → right click" is still
+present in the "3 → double click" capture):
+
+| software setting        | packet change                                   |
+| ----------------------- | ----------------------------------------------- |
+| button 4 → forward      | row 7 = `06` (also the baseline)                |
+| button 4 → fire         | row 7 = `10 00 03` (code `10`, param byte `03`) |
+| button 2 → browser home | row 2 code = `25`                               |
+| button 2 → left click   | row 2 code = `02`                               |
+| button 1 → right click  | row 1 = `03`, row 2 = `02` (left/right swap)    |
+| button 3 → double click | row 3 code = `07`                               |
+| button 5 → middle click | row 8 code = `04`                               |
+
+### How the actions are emitted (HID output reports)
+
+When a remapped button is pressed, the firmware replays one or more **output
+HID reports** (not the config interface). Confirmed so far:
+
+| action         | output reports                         | meaning                              |
+| -------------- | -------------------------------------- | ------------------------------------ |
+| browser home   | `02 23 02` then `02 00 00`             | Consumer usage `0x0223` (AC Home), press + release |
+
+So "browser home" is a momentary press of the HID **Consumer → Home** key
+(report ID `0x02`, usage `0x0223`, little-endian `23 02`), released with an
+empty report `02 00 00`. The other actions presumably emit similar standard
+HID reports (buttons, media keys, keyboard) — capturing those while pressing
+each remapped button would confirm the full action-code → HID-usage mapping.
+
+Open questions for 0x08:
+
+* Rows 4, 5, 6, 9–18 are not yet tied to a physical button (codes `0d 3c 0f
+  01×7 0a 09` are unlabelled).
+* The `03` param byte for "fire" — macro speed / repeat count? Need a couple
+  more fire/macro captures.
+* Full action-code table unknown — many actions (keyboard keys, macros,
+  volume, etc.) beyond the nine decoded so far.
+
 ### Open questions
 
 * **Deep sleep > 30 min**: `+768` offset verified only at 60 min.

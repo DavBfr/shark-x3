@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'widgets/apply_bar.dart';
@@ -10,6 +11,7 @@ import 'widgets/status_monitor.dart';
 import 'x3_device.dart';
 import 'x3_prefs.dart';
 import 'x3_profile.dart';
+import 'x3_protocol.dart';
 import 'x3_status.dart';
 
 /// The whole app lives on this one scrolling page: connect the mouse, tweak
@@ -33,6 +35,14 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
   String _statusMessage = '';
   final List<X3StatusReport> _reports = [];
   StreamSubscription<X3StatusReport>? _statusSub;
+  Timer? _sleepTimer;
+  DateTime? _lastStatusAt;
+
+  /// null until the first 0x40 wireless-status report; then awake/sleeping.
+  bool? _mouseAwake;
+
+  /// If no 0x40 heartbeat arrives within this window, assume the mouse slept.
+  static const _sleepTimeout = Duration(seconds: 6);
 
   @override
   void initState() {
@@ -88,12 +98,20 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
   void _startStatusWatch() {
     _statusSub?.cancel();
     _reports.clear();
+    _sleepTimer?.cancel();
+    _lastStatusAt = null;
+    _mouseAwake = null;
     _statusSub = _service.watchStatus().listen((report) {
       if (!mounted) return;
       var stageChanged = false;
       setState(() {
         _reports.add(report);
         if (_reports.length > 8) _reports.removeAt(0);
+        // The 0x40 wireless-status report is the "awake on 2.4G" heartbeat.
+        if (report.kind == X3StatusKind.status) {
+          _lastStatusAt = DateTime.now();
+          _mouseAwake = true;
+        }
         // Follow the mouse's DPI button: sync the active-stage selection.
         final stage = report.dpiStage;
         if (report.kind == X3StatusKind.dpiStage &&
@@ -105,9 +123,21 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
       });
       if (stageChanged) _prefs.saveCurrent(_profile);
     });
+    // If the 0x40 heartbeat stops for a while, the mouse has likely slept.
+    _sleepTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final last = _lastStatusAt;
+      if (last != null &&
+          DateTime.now().difference(last) > _sleepTimeout &&
+          _mouseAwake != false) {
+        setState(() => _mouseAwake = false);
+      }
+    });
   }
 
   Future<void> _disconnect() async {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
     await _statusSub?.cancel();
     _statusSub = null;
     await _service.disconnect();
@@ -115,6 +145,8 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
     setState(() {
       _connected = false;
       _reports.clear();
+      _mouseAwake = null;
+      _lastStatusAt = null;
       _statusMessage =
           'Disconnected. Change settings any time — press '
           '“Apply to mouse” after reconnecting.';
@@ -123,6 +155,7 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
 
   @override
   void dispose() {
+    _sleepTimer?.cancel();
     _statusSub?.cancel();
     super.dispose();
   }
@@ -140,6 +173,7 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
     final result = await _service.sendAll(
       report04: plan.send04 ? _profile.toReport04() : null,
       report06: plan.send06 ? _profile.toReport06() : null,
+      report08: plan.send08 ? _profile.toReport08() : null,
       report05: plan.send05 ? _profile.toReport05() : null,
     );
     if (!mounted) return;
@@ -246,13 +280,19 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
                           busy: _busy,
                           productName: _service.config?.productName ?? '',
                           statusMessage: _statusMessage,
+                          mouseAwake: _mouseAwake,
                           onConnect: () => _connect(),
                           onDisconnect: _disconnect,
                         ),
                         _dpiCard(context),
                         _performanceCard(context),
                         _powerCard(context),
-                        StatusMonitor(connected: _connected, reports: _reports),
+                        _buttonsCard(context),
+                        if (kDebugMode)
+                          StatusMonitor(
+                            connected: _connected,
+                            reports: _reports,
+                          ),
                       ],
                     ),
                   ),
@@ -604,6 +644,120 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
         ),
       ],
     );
+  }
+
+  // Sentinel dropdown value that opens the "enter a custom hex code" prompt.
+  static const int _buttonCustomHex = -1;
+
+  Widget _buttonsCard(BuildContext context) {
+    final codes = _profile.buttonCodes ?? x3DefaultButtonCodes;
+    // Only the buttons whose mapping has been decoded are shown.
+    final rows = x3ButtonRowNames.keys.toList()..sort();
+    return _sectionCard(
+      context,
+      icon: Icons.touch_app_outlined,
+      title: 'Buttons & actions',
+      subtitle:
+          'Reassign what the buttons do — for example make a side button '
+          'open your browser or fire rapidly. Buttons are only sent to the '
+          'mouse after you change one.',
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const Divider(height: 1),
+          _buttonRow(context, rows[i], codes[rows[i]]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buttonRow(BuildContext context, int row, int current) {
+    final theme = Theme.of(context);
+    final label = x3ButtonRowNames[row] ?? 'Button ${row + 1}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  x3ButtonActionLabel(current),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          DropdownButton<int>(
+            value: current,
+            isDense: true,
+            underline: const SizedBox.shrink(),
+            items: _buttonActionItems(row, current),
+            onChanged: (v) {
+              if (v == null || v == current) return;
+              if (v == _buttonCustomHex) {
+                _promptButtonHex(row, current);
+                return;
+              }
+              _setButtonCode(row, v);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<DropdownMenuItem<int>> _buttonActionItems(int row, int current) {
+    final items = <DropdownMenuItem<int>>[];
+    void add(int code, String label) {
+      if (items.any((e) => e.value == code)) return;
+      items.add(DropdownMenuItem(value: code, child: Text(label)));
+    }
+
+    final defaultCode = x3DefaultButtonCodes[row];
+    // Show the action's name (e.g. "Left click") rather than the word
+    // "Default", so the dropdown reads naturally. Falls back to "Default"
+    // only if the row's default code has no decoded name yet.
+    add(defaultCode, x3ButtonActionNames[defaultCode] ?? 'Default');
+    for (final e in x3ButtonActionNames.entries) {
+      add(e.key, e.value);
+    }
+    if (!items.any((e) => e.value == current)) {
+      add(current, x3ButtonActionLabel(current));
+    }
+    add(_buttonCustomHex, 'Custom hex…');
+    return items;
+  }
+
+  void _setButtonCode(int row, int code) {
+    final current = _profile.buttonCodes ?? x3DefaultButtonCodes;
+    final next = List<int>.of(current);
+    next[row] = code & 0xff;
+    _updateProfile(_profile.copyWith(buttonCodes: next));
+  }
+
+  Future<void> _promptButtonHex(int row, int current) async {
+    final label = x3ButtonRowNames[row] ?? 'Button ${row + 1}';
+    final input = await _promptText(
+      'Custom button code',
+      'Hex code (00–FF) for $label',
+      current.toRadixString(16).padLeft(2, '0'),
+    );
+    if (input == null) return;
+    final code = int.tryParse(input.trim(), radix: 16);
+    if (code == null || code < 0 || code > 0xff) {
+      _showSnack('Please enter a hex value from 00 to FF.');
+      return;
+    }
+    _setButtonCode(row, code);
   }
 
   Widget _valueSlider({

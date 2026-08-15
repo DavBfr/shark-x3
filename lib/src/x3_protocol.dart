@@ -23,14 +23,92 @@ const int x3StageCount = 6;
 const int x3Report04 = 0x04; // main config (51-byte payload)
 const int x3Report05 = 0x05; // sleep / deep sleep / key response (12 bytes)
 const int x3Report06 = 0x06; // polling rate (9 bytes)
+const int x3Report08 = 0x08; // button map / remapping (58-byte payload)
 
 /// Polling codes for report 0x06: code = 1000 / Hz.
-const Map<int, int> x3PollCode = {
-  1000: 0x01,
-  500: 0x02,
-  250: 0x04,
-  125: 0x08,
+const Map<int, int> x3PollCode = {1000: 0x01, 500: 0x02, 250: 0x04, 125: 0x08};
+
+/// Number of assignable button rows in report 0x08.
+const int x3ButtonRowCount = 18;
+
+/// Payload offset (report ID stripped) of the first button row. On the wire
+/// the row starts one byte later (after the report-ID byte).
+const int x3ButtonRowStart = 2;
+
+/// Each button row is 3 bytes: `[code] 00 [param]`.
+const int x3ButtonRowBytes = 3;
+
+/// Inferred default action code per row, taken from the official software's
+/// "forward" capture (analysis/analysis.md). Row -> software button mapping
+/// confirmed from the captures:
+///
+///   row 1 = button 1 (left)   default 0x02 left click
+///   row 2 = button 2 (right)  default 0x03 right click
+///   row 3 = button 3 (middle) default 0x04 middle click
+///   row 7 = button 4 (side)   default 0x06 forward
+///   row 8 = button 5 (side)   default 0x05 back
+const List<int> x3DefaultButtonCodes = [
+  0x02,
+  0x03,
+  0x04,
+  0x0d,
+  0x3c,
+  0x0f,
+  0x06,
+  0x05,
+  0x3c,
+  0x01,
+  0x01,
+  0x01,
+  0x01,
+  0x01,
+  0x01,
+  0x01,
+  0x0a,
+  0x09,
+];
+
+/// Confirmed row index (0-based) -> software button label for report 0x08.
+const Map<int, String> x3ButtonRowNames = {
+  0: 'Button 1 (left)',
+  1: 'Button 2 (right)',
+  2: 'Button 3 (middle)',
+  6: 'Button 4 (side)',
+  7: 'Button 5 (side)',
 };
+
+/// Named action codes observed in the official-software captures.
+const int x3ButtonActionNone = 0x00;
+const int x3ButtonActionLeft = 0x02; // default of row 1
+const int x3ButtonActionRight = 0x03; // default of row 2
+const int x3ButtonActionMiddle = 0x04; // default of row 3
+const int x3ButtonActionBack = 0x05; // default of row 8
+const int x3ButtonActionForward = 0x06; // default of row 7
+const int x3ButtonActionDoubleClick = 0x07; // "button 3 → double click"
+const int x3ButtonActionFire = 0x10; // "button 4 → fire" (`10 00 03`)
+const int x3ButtonActionBrowserHome = 0x25; // "button 2 → browser home"
+
+/// Extra third byte some actions need (e.g. "fire" uses `03`, captured from
+/// the official software). Everything else sends `00`.
+const Map<int, int> x3ButtonActionParam = {x3ButtonActionFire: 0x03};
+
+/// Human-readable names for the action codes decoded so far.
+const Map<int, String> x3ButtonActionNames = {
+  x3ButtonActionNone: 'No function',
+  x3ButtonActionLeft: 'Left click',
+  x3ButtonActionRight: 'Right click',
+  x3ButtonActionMiddle: 'Middle click',
+  x3ButtonActionBack: 'Back',
+  x3ButtonActionForward: 'Forward',
+  x3ButtonActionDoubleClick: 'Double click',
+  x3ButtonActionFire: 'Fire (rapid)',
+  x3ButtonActionBrowserHome: 'Browser home',
+};
+
+/// A human-readable label for a button action code (hex when unknown).
+String x3ButtonActionLabel(int code) =>
+    x3ButtonActionNames[code] ??
+    'Custom (0x${code.toRadixString(16).padLeft(2, '0').toUpperCase()})';
 
 /// Report-0x04 payload field offsets.
 const int x3LodOffset = 2; // 0 = 1 mm, 1 = 2 mm
@@ -61,16 +139,74 @@ const int x6Check = 3; // 0xFF - code
 /// (DPI, flags, active stage, checksums) is overwritten when building a
 /// report. Verified against the capture: checksum == (0x0f, 0x89).
 const List<int> x3Baseline04 = [
-  0x38, 0x01, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x0e, 0x18, 0x35, 0x63, 0xc7, 0x8f,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x01, 0xff, 0x00,
-  0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff,
-  0xff, 0x00, 0xff, 0xff, 0x40, 0x00, 0xff, 0xff, 0xff, 0x01, 0x0f, 0x89,
+  0x38,
+  0x01,
+  0x00,
+  0x00,
+  0x3f,
+  0x00,
+  0x00,
+  0x0e,
+  0x18,
+  0x35,
+  0x63,
+  0xc7,
+  0x8f,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x01,
+  0xff,
+  0x00,
+  0x00,
+  0x00,
+  0xff,
+  0x00,
+  0x00,
+  0x00,
+  0xff,
+  0xff,
+  0xff,
+  0x00,
+  0x00,
+  0xff,
+  0xff,
+  0xff,
+  0x00,
+  0xff,
+  0xff,
+  0x40,
+  0x00,
+  0xff,
+  0xff,
+  0xff,
+  0x01,
+  0x0f,
+  0x89,
 ];
 
 /// Report-0x05 default payload template (report ID stripped, 12 bytes).
 /// Deep sleep 10 min, sleep 4.5 min, key response 6 ms; checksum recomputed.
 const List<int> _x3Baseline05 = [
-  0x0f, 0x01, 0x00, 0x03, 0xa8, 0x00, 0x00, 0xff, 0x09, 0x03, 0x01, 0x00,
+  0x0f,
+  0x01,
+  0x00,
+  0x03,
+  0xa8,
+  0x00,
+  0x00,
+  0xff,
+  0x09,
+  0x03,
+  0x01,
+  0x00,
 ];
 
 /// Sums `p[from]` .. `p[toInclusive]` (inclusive).
@@ -137,8 +273,8 @@ int checksum05(List<int> p) {
   final n = deep <= 15
       ? deep + 48
       : deep <= 30
-          ? deep + 288
-          : deep + 768;
+      ? deep + 288
+      : deep + 768;
   final v = (n << 4) | 8;
   return ((v >> 8) & 0xff, v & 0xff, deep <= 30 ? 1 : 2);
 }
@@ -173,7 +309,10 @@ List<int> buildReport04({
 }) {
   if (dpi != null && dpi.length != x3StageCount) {
     throw ArgumentError.value(
-        dpi.length, 'dpi', 'must have exactly $x3StageCount values');
+      dpi.length,
+      'dpi',
+      'must have exactly $x3StageCount values',
+    );
   }
   final p = List<int>.of(x3Baseline04);
   if (dpi != null) {
@@ -186,7 +325,10 @@ List<int> buildReport04({
   if (activeStage != null) {
     if (activeStage < 0 || activeStage >= x3StageCount) {
       throw ArgumentError.value(
-          activeStage, 'activeStage', 'must be in range 0..5');
+        activeStage,
+        'activeStage',
+        'must be in range 0..5',
+      );
     }
     p[x3ActiveOffset] = activeStage + 1;
   }
@@ -234,9 +376,84 @@ List<int> buildReport06(int polling) {
   final code = x3PollCode[polling];
   if (code == null) {
     throw ArgumentError.value(
-        polling, 'polling', 'must be one of ${x3PollCode.keys.toList()..sort()}');
+      polling,
+      'polling',
+      'must be one of ${x3PollCode.keys.toList()..sort()}',
+    );
   }
   return [0x09, 0x01, code, (0xFF - code) & 0xff, 0, 0, 0, 0, 0];
+}
+
+/// Build a report-0x08 button-map payload (58 bytes, report ID stripped).
+///
+/// [codes] must have exactly [x3ButtonRowCount] action codes. Each row is
+/// `[code] 00 [param]`; the param byte is normally 0 but some actions (e.g.
+/// "fire") use a captured extra value (see [x3ButtonActionParam]).
+///
+/// Checksum `(sum of all 58 payload bytes + report-ID 0x08 + 0xBC) & 0xFF` was
+/// verified against all three official captures (`cf`, `c2`, `e4`).
+List<int> buildReport08(List<int> codes) {
+  if (codes.length != x3ButtonRowCount) {
+    throw ArgumentError.value(
+      codes.length,
+      'codes',
+      'must have exactly $x3ButtonRowCount action codes',
+    );
+  }
+  final p = <int>[0x3b, 0x01]; // length (59) and sub-command
+  for (var i = 0; i < x3ButtonRowCount; i++) {
+    final code = codes[i] & 0xff;
+    p
+      ..add(code)
+      ..add(0)
+      ..add(x3ButtonActionParam[code] ?? 0);
+  }
+  p.add(0); // trailing byte before the checksum
+  var sum = 0x08; // the report-ID byte participates in the checksum
+  for (final b in p) {
+    sum += b;
+  }
+  p.add((sum + 0xBC) & 0xff);
+  return p;
+}
+
+/// Result of decoding a report-0x08 payload.
+class X3ButtonMapDecode {
+  X3ButtonMapDecode({
+    required this.codes,
+    required this.params,
+    required this.checksum,
+    required this.checksumOk,
+  });
+
+  final List<int> codes; // 18 action codes
+  final List<int> params; // 18 extra bytes (mostly 0)
+  final int checksum;
+  final bool checksumOk;
+}
+
+/// Decode a report-0x08 payload (58 bytes, report ID stripped), or null if it
+/// is too short.
+X3ButtonMapDecode? decode08(List<int> p) {
+  if (p.length < 58) return null;
+  final codes = <int>[];
+  final params = <int>[];
+  for (var i = 0; i < x3ButtonRowCount; i++) {
+    final row = x3ButtonRowStart + i * x3ButtonRowBytes;
+    codes.add(p[row]);
+    params.add(p[row + 2]);
+  }
+  var sum = 0x08; // the report-ID byte participates in the checksum
+  for (var i = 0; i < 57; i++) {
+    sum += p[i];
+  }
+  final checksum = p[57];
+  return X3ButtonMapDecode(
+    codes: codes,
+    params: params,
+    checksum: checksum,
+    checksumOk: checksum == ((sum + 0xBC) & 0xff),
+  );
 }
 
 /// Result of decoding a report-0x04 payload.
@@ -344,5 +561,5 @@ X3PollingDecode? decode06(List<int> p) {
 /// Windows strips it already. This normalizes both to a pure payload.
 List<int> stripReportId(List<int> data, int reportId) =>
     data.isNotEmpty && data.first == reportId
-        ? data.sublist(1)
-        : List<int>.of(data);
+    ? data.sublist(1)
+    : List<int>.of(data);

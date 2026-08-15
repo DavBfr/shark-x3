@@ -242,11 +242,12 @@ class X3DeviceService {
   }
 
   /// Apply reports in the canonical order: 0x04 (config) -> 0x06 (polling) ->
-  /// 0x05 (power). Null reports are skipped.
+  /// 0x08 (buttons) -> 0x05 (power). Null reports are skipped.
   Future<X3SendResult> sendAll({
     List<int>? report04,
     List<int>? report05,
     List<int>? report06,
+    List<int>? report08,
   }) async {
     final messages = <String>[];
     var allOk = true;
@@ -254,10 +255,12 @@ class X3DeviceService {
       x3Report04: 'Sensitivity (DPI)',
       x3Report05: 'Power settings',
       x3Report06: 'Polling rate',
+      x3Report08: 'Buttons',
     };
     for (final (rid, payload) in [
       (x3Report04, report04),
       (x3Report06, report06),
+      (x3Report08, report08),
       (x3Report05, report05),
     ]) {
       if (payload == null) continue;

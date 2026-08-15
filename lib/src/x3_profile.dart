@@ -46,6 +46,7 @@ class X3Profile {
     required this.sleepMinutes,
     required this.deepMinutes,
     required this.keyMs,
+    this.buttonCodes,
   });
 
   /// Factory defaults: DPI stages 800/1600/2400/3200/5000/26000 with the
@@ -75,6 +76,10 @@ class X3Profile {
   final int deepMinutes; // 1..60
   final int keyMs; // 1..50
 
+  /// 18 button action codes for report 0x08, or null when the user hasn't
+  /// touched the buttons (nothing is sent until one is changed).
+  final List<int>? buttonCodes;
+
   int get activeDpi => dpi[activeStage];
   X3LedInfo get activeLed => x3StageLed[activeStage];
 
@@ -89,6 +94,8 @@ class X3Profile {
     double? sleepMinutes,
     int? deepMinutes,
     int? keyMs,
+    List<int>? buttonCodes,
+    bool clearButtons = false,
   }) {
     return X3Profile(
       dpi: List<int>.of(dpi ?? this.dpi),
@@ -101,6 +108,11 @@ class X3Profile {
       sleepMinutes: sleepMinutes ?? this.sleepMinutes,
       deepMinutes: deepMinutes ?? this.deepMinutes,
       keyMs: keyMs ?? this.keyMs,
+      buttonCodes: clearButtons
+          ? null
+          : (buttonCodes != null
+                ? List<int>.of(buttonCodes)
+                : this.buttonCodes),
     );
   }
 
@@ -124,6 +136,14 @@ class X3Profile {
   /// Build the report-0x06 payload for this profile.
   List<int> toReport06() => proto.buildReport06(polling);
 
+  /// Build the report-0x08 payload, or null when the button map hasn't been
+  /// touched (there is nothing to send).
+  List<int>? toReport08() {
+    final codes = buttonCodes;
+    if (codes == null) return null;
+    return proto.buildReport08(codes);
+  }
+
   Map<String, dynamic> toJson() => {
     'version': 1,
     'dpi': dpi,
@@ -136,6 +156,7 @@ class X3Profile {
     'sleepMinutes': sleepMinutes,
     'deepMinutes': deepMinutes,
     'keyMs': keyMs,
+    'buttonCodes': buttonCodes,
   };
 
   /// Parse from JSON, clamping every value to its valid range and falling
@@ -156,6 +177,21 @@ class X3Profile {
       if (dpi.length > proto.x3StageCount) {
         dpi.removeRange(proto.x3StageCount, dpi.length);
       }
+      List<int>? buttonCodes;
+      final rawButtons = json['buttonCodes'];
+      if (rawButtons is List) {
+        final codes = <int>[];
+        for (final v in rawButtons) {
+          codes.add((v as num).toInt() & 0xff);
+        }
+        while (codes.length < proto.x3ButtonRowCount) {
+          codes.add(proto.x3DefaultButtonCodes[codes.length]);
+        }
+        if (codes.length > proto.x3ButtonRowCount) {
+          codes.removeRange(proto.x3ButtonRowCount, codes.length);
+        }
+        buttonCodes = codes;
+      }
       return X3Profile(
         dpi: dpi,
         activeStage: clampStage(
@@ -175,6 +211,7 @@ class X3Profile {
           (json['deepMinutes'] as num?)?.toInt() ?? defaults.deepMinutes,
         ),
         keyMs: clampKey((json['keyMs'] as num?)?.toInt() ?? defaults.keyMs),
+        buttonCodes: buttonCodes,
       );
     } catch (_) {
       return null;
@@ -232,6 +269,7 @@ class X3ApplyPlan {
     required this.send04,
     required this.send05,
     required this.send06,
+    required this.send08,
     required this.changed,
   });
 
@@ -244,10 +282,13 @@ class X3ApplyPlan {
   /// Send report 0x06 (polling rate)?
   final bool send06;
 
+  /// Send report 0x08 (button map)?
+  final bool send08;
+
   /// Human-readable summary of what changed (empty when nothing to send).
   final List<String> changed;
 
-  bool get anything => send04 || send05 || send06;
+  bool get anything => send04 || send05 || send06 || send08;
 }
 
 /// Work out which reports to send to bring the mouse from [lastApplied] up to
@@ -259,16 +300,39 @@ class X3ApplyPlan {
 /// there is no such copy, everything is sent; afterwards only the reports
 /// whose fields changed are sent. Each report is atomic (a full payload), so a
 /// single changed DPI stage still sends the whole report 0x04.
+///
+/// The button map (report 0x08) is opt-in: it is only sent once the user has
+/// actually edited a button ([X3Profile.buttonCodes] is non-null), because the
+/// row-to-button mapping is only partially decoded and we don't want to
+/// overwrite unknown factory buttons on the very first apply.
 X3ApplyPlan buildApplyPlan(X3Profile current, X3Profile? lastApplied) {
+  bool sameIntList(List<int>? a, List<int>? b) {
+    if (a == null || b == null) return a == b;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  final changed = <String>[];
+
+  var send08 = false;
+  if (current.buttonCodes != null &&
+      !sameIntList(current.buttonCodes, lastApplied?.buttonCodes)) {
+    send08 = true;
+    changed.add('button map');
+  }
+
   if (lastApplied == null) {
-    return const X3ApplyPlan(
+    return X3ApplyPlan(
       send04: true,
       send05: true,
       send06: true,
+      send08: send08,
       changed: ['all settings (first time)'],
     );
   }
-  final changed = <String>[];
 
   var send04 = false;
   for (var i = 0; i < current.dpi.length; i++) {
@@ -319,6 +383,7 @@ X3ApplyPlan buildApplyPlan(X3Profile current, X3Profile? lastApplied) {
     send04: send04,
     send05: send05,
     send06: send06,
+    send08: send08,
     changed: changed,
   );
 }

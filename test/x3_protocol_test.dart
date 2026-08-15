@@ -182,6 +182,139 @@ void main() {
     });
   });
 
+  group('report 0x08 (button map)', () {
+    List<int> hex(String s) => [
+      for (var i = 0; i < s.length; i += 2)
+        int.parse(s.substring(i, i + 2), radix: 16),
+    ];
+
+    final defaults = x3DefaultButtonCodes;
+
+    test('default map reproduces the "forward" capture (checksum c2)', () {
+      expect(
+        buildReport08(defaults),
+        hex(
+          '3b010200000300000400000d00003c00000f00000600000500003c'
+          '00000100000100000100000100000100000100000100000a000009'
+          '000000c2',
+        ),
+      );
+    });
+
+    test(
+      'row 7 = fire (0x10) reproduces the "fire" capture incl. param 03',
+      () {
+        final codes = List<int>.of(defaults)..[6] = x3ButtonActionFire;
+        expect(
+          buildReport08(codes),
+          hex(
+            '3b010200000300000400000d00003c00000f00001000030500003c'
+            '00000100000100000100000100000100000100000100000a000009'
+            '000000cf',
+          ),
+        );
+      },
+    );
+
+    test(
+      'row 2 = browser home (0x25) reproduces the "browser home" capture',
+      () {
+        final codes = List<int>.of(defaults)..[1] = x3ButtonActionBrowserHome;
+        expect(
+          buildReport08(codes),
+          hex(
+            '3b010200002500000400000d00003c00000f00000600000500003c'
+            '00000100000100000100000100000100000100000100000a000009'
+            '000000e4',
+          ),
+        );
+      },
+    );
+
+    test('row 2 = left click reproduces the "2 → left click" capture', () {
+      final codes = List<int>.of(defaults)..[1] = x3ButtonActionLeft;
+      expect(
+        buildReport08(codes),
+        hex(
+          '3b010200000200000400000d00003c00000f00000600000500003c'
+          '00000100000100000100000100000100000100000100000a000009'
+          '000000c1',
+        ),
+      );
+    });
+
+    test('rows 1+2 swapped reproduces the "1 → right click" capture', () {
+      final codes = List<int>.of(defaults)
+        ..[0] = x3ButtonActionRight
+        ..[1] = x3ButtonActionLeft;
+      expect(
+        buildReport08(codes),
+        hex(
+          '3b010300000200000400000d00003c00000f00000600000500003c'
+          '00000100000100000100000100000100000100000100000a000009'
+          '000000c2',
+        ),
+      );
+    });
+
+    test('row 3 = double click reproduces the "3 → double click" capture', () {
+      final codes = List<int>.of(defaults)
+        ..[0] = x3ButtonActionRight
+        ..[1] = x3ButtonActionLeft
+        ..[2] = x3ButtonActionDoubleClick;
+      expect(
+        buildReport08(codes),
+        hex(
+          '3b010300000200000700000d00003c00000f00000600000500003c'
+          '00000100000100000100000100000100000100000100000a000009'
+          '000000c5',
+        ),
+      );
+    });
+
+    test('row 8 = middle click reproduces the "5 → middle click" capture', () {
+      final codes = List<int>.of(defaults)
+        ..[0] = x3ButtonActionRight
+        ..[1] = x3ButtonActionLeft
+        ..[2] = x3ButtonActionDoubleClick
+        ..[7] = x3ButtonActionMiddle;
+      expect(
+        buildReport08(codes),
+        hex(
+          '3b010300000200000700000d00003c00000f00000600000400003c'
+          '00000100000100000100000100000100000100000100000a000009'
+          '000000c4',
+        ),
+      );
+    });
+
+    test('decode08 round-trips and validates the checksum', () {
+      final d = decode08(buildReport08(defaults))!;
+      expect(d.codes, defaults);
+      expect(d.checksumOk, isTrue);
+      expect(d.params.where((p) => p != 0), isEmpty);
+    });
+
+    test('fire decode carries the param byte 03', () {
+      final codes = List<int>.of(defaults)..[6] = x3ButtonActionFire;
+      final d = decode08(buildReport08(codes))!;
+      expect(d.codes[6], x3ButtonActionFire);
+      expect(d.params[6], 0x03);
+      expect(d.checksumOk, isTrue);
+    });
+
+    test('detects a corrupt checksum', () {
+      final p = buildReport08(defaults);
+      p[57] = (p[57] + 1) & 0xff;
+      final d = decode08(p)!;
+      expect(d.checksumOk, isFalse);
+    });
+
+    test('rejects a wrong row count', () {
+      expect(() => buildReport08(List.filled(17, 0)), throwsArgumentError);
+    });
+  });
+
   group('stripReportId', () {
     test('strips when present, otherwise passes through', () {
       expect(stripReportId([0x04, 0x38, 0x01], 0x04), [0x38, 0x01]);

@@ -15,6 +15,7 @@ import 'dart:typed_data';
 import 'package:hid/hid.dart' as hid;
 
 import 'x3_protocol.dart';
+import 'x3_status.dart';
 
 const int x3VendorId = 0x1d57;
 
@@ -299,5 +300,19 @@ class X3DeviceService {
   Future<X3ConfigDecode?> readConfig04() async {
     final payload = await readReport(x3Report04, payloadLength: 51);
     return payload == null ? null : decode04(payload);
+  }
+
+  /// A live stream of decoded status reports the mouse pushes on the config
+  /// interface (report 0x03). Empty when not connected; the stream ends when
+  /// the device is closed.
+  Stream<X3StatusReport> watchStatus() {
+    final device = _device;
+    if (device == null) return const Stream<X3StatusReport>.empty();
+    return device
+        .read(64, 50) // input reports, polled every 50 ms
+        .where((chunk) => chunk.isNotEmpty)
+        .map((chunk) => decodeStatusReport(chunk))
+        .where((report) => report != null)
+        .map((report) => report!);
   }
 }

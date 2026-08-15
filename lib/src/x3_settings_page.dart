@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'widgets/apply_bar.dart';
 import 'widgets/connection_card.dart';
 import 'widgets/dpi_stage_editor.dart';
 import 'widgets/explained_setting.dart';
+import 'widgets/status_monitor.dart';
 import 'x3_device.dart';
 import 'x3_prefs.dart';
 import 'x3_profile.dart';
+import 'x3_status.dart';
 
 /// The whole app lives on this one scrolling page: connect the mouse, tweak
 /// sensitivity / response / power, and press Apply.
@@ -27,6 +31,8 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
   bool _connected = false;
   bool _busy = false;
   String _statusMessage = '';
+  final List<X3StatusReport> _reports = [];
+  StreamSubscription<X3StatusReport>? _statusSub;
 
   @override
   void initState() {
@@ -76,17 +82,49 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
                       'wireless dongle, then press “Connect mouse”.'
                 : message);
     });
+    if (connected) _startStatusWatch();
+  }
+
+  void _startStatusWatch() {
+    _statusSub?.cancel();
+    _reports.clear();
+    _statusSub = _service.watchStatus().listen((report) {
+      if (!mounted) return;
+      var stageChanged = false;
+      setState(() {
+        _reports.add(report);
+        if (_reports.length > 8) _reports.removeAt(0);
+        // Follow the mouse's DPI button: sync the active-stage selection.
+        final stage = report.dpiStage;
+        if (report.kind == X3StatusKind.dpiStage &&
+            stage != null &&
+            stage - 1 != _profile.activeStage) {
+          _profile = _profile.copyWith(activeStage: stage - 1);
+          stageChanged = true;
+        }
+      });
+      if (stageChanged) _prefs.saveCurrent(_profile);
+    });
   }
 
   Future<void> _disconnect() async {
+    await _statusSub?.cancel();
+    _statusSub = null;
     await _service.disconnect();
     if (!mounted) return;
     setState(() {
       _connected = false;
+      _reports.clear();
       _statusMessage =
           'Disconnected. Change settings any time — press '
           '“Apply to mouse” after reconnecting.';
     });
+  }
+
+  @override
+  void dispose() {
+    _statusSub?.cancel();
+    super.dispose();
   }
 
   // ---- Actions ----------------------------------------------------------
@@ -214,6 +252,7 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
                         _dpiCard(context),
                         _performanceCard(context),
                         _powerCard(context),
+                        StatusMonitor(connected: _connected, reports: _reports),
                       ],
                     ),
                   ),

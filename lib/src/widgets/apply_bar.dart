@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 /// The apply bar: send settings to the mouse, reset, and profile menu.
 class ApplyBar extends StatelessWidget {
@@ -30,13 +31,16 @@ class ApplyBar extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.check_circle_outline,
-                    color: theme.colorScheme.primary),
+                Icon(
+                  Icons.check_circle_outline,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Apply',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -44,8 +48,9 @@ class ApplyBar extends StatelessWidget {
             Text(
               'Nothing is sent to the mouse until you press “Apply to mouse”. '
               'Change as much as you like first.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
@@ -59,7 +64,8 @@ class ApplyBar extends StatelessWidget {
                   : const Icon(Icons.check),
               label: Text(busy ? 'Applying…' : 'Apply to mouse'),
               style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
             ),
             const SizedBox(height: 10),
             Row(
@@ -97,18 +103,24 @@ class ApplyBar extends StatelessWidget {
                     ),
                   ],
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      border:
-                          Border.all(color: theme.colorScheme.outlineVariant),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.bookmarks,
-                            size: 18, color: theme.colorScheme.primary),
+                        Icon(
+                          Icons.bookmarks,
+                          size: 18,
+                          color: theme.colorScheme.primary,
+                        ),
                         const SizedBox(width: 6),
                         Text('Profiles', style: theme.textTheme.labelLarge),
                       ],
@@ -122,4 +134,40 @@ class ApplyBar extends StatelessWidget {
       ),
     );
   }
+}
+
+@Preview(name: 'Apply Bar')
+Widget applyBarPreview() {
+  return ApplyBar(
+    connected: true,
+    busy: false,
+    onApply: () {},
+    onReset: () {},
+    onSaveProfile: () {},
+    onLoadProfile: () {},
+  );
+}
+
+@Preview(name: 'Apply Bar (Busy)')
+Widget applyBarBusyPreview() {
+  return ApplyBar(
+    connected: true,
+    busy: true,
+    onApply: () {},
+    onReset: () {},
+    onSaveProfile: () {},
+    onLoadProfile: () {},
+  );
+}
+
+@Preview(name: 'Apply Bar (Disconnected)')
+Widget applyBarDisconnectedPreview() {
+  return ApplyBar(
+    connected: false,
+    busy: false,
+    onApply: () {},
+    onReset: () {},
+    onSaveProfile: () {},
+    onLoadProfile: () {},
+  );
 }

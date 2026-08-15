@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 /// The connection card: status, connect/disconnect, and friendly guidance.
 class ConnectionCard extends StatelessWidget {
@@ -36,8 +37,9 @@ class ConnectionCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   label,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const Spacer(),
                 if (connected)
@@ -64,15 +66,17 @@ class ConnectionCard extends StatelessWidget {
             if (connected)
               Text(
                 productName.isEmpty ? 'Attack Shark X3' : productName,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               )
             else
               Text(
                 'Plug in your mouse with a cable and press “Connect mouse”. '
                 'If it doesn’t show up, try a different USB port.',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             if (statusMessage.isNotEmpty) ...[
               const SizedBox(height: 6),
@@ -83,4 +87,40 @@ class ConnectionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+@Preview(name: 'Connection Card')
+Widget connectionCardPreview() {
+  return ConnectionCard(
+    connected: false,
+    busy: false,
+    onConnect: () {},
+    onDisconnect: () {},
+    productName: 'Attack Shark X3',
+    statusMessage: '',
+  );
+}
+
+@Preview(name: 'Connection Card (connected)')
+Widget connectionCardConnectedPreview() {
+  return ConnectionCard(
+    connected: true,
+    busy: false,
+    onConnect: () {},
+    onDisconnect: () {},
+    productName: 'Attack Shark X3',
+    statusMessage: 'ready to go',
+  );
+}
+
+@Preview(name: 'Connection Card (busy)')
+Widget connectionCardBusyPreview() {
+  return ConnectionCard(
+    connected: false,
+    busy: true,
+    onConnect: () {},
+    onDisconnect: () {},
+    productName: '',
+    statusMessage: 'connecting…',
+  );
 }

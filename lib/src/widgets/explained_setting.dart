@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 /// A labeled setting with a plain-English explanation and a help button that
 /// opens a longer explanation in a bottom sheet.
@@ -99,4 +100,26 @@ class ExplainedSetting extends StatelessWidget {
       ),
     );
   }
+}
+
+@Preview(name: 'Explained Setting')
+Widget explainedSettingPreview() {
+  return ExplainedSetting(
+    title: 'DPI Stage 1',
+    icon: Icons.mouse,
+    explanation: 'The DPI setting for the first stage.',
+    detail:
+        'This is the DPI setting for the first stage of the mouse. You can adjust it to your preference.',
+    control: Text('Control goes here'),
+  );
+}
+
+@Preview(name: 'Explained Setting with trailing')
+Widget explainedSettingWithTrailingPreview() {
+  return ExplainedSetting(
+    title: 'Enable Feature',
+    icon: Icons.settings,
+    explanation: 'Toggle this feature on or off.',
+    trailing: Switch(value: true, onChanged: (value) {}),
+  );
 }

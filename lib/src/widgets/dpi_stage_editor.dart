@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import '../x3_profile.dart';
 
@@ -147,4 +148,32 @@ class DpiStageEditor extends StatelessWidget {
       ),
     );
   }
+}
+
+@Preview(name: 'DPI Stage Editor')
+Widget dpiStageEditorPreview() {
+  var dpi = 1600;
+  return StatefulBuilder(
+    builder: (context, setState) => DpiStageEditor(
+      stage: 0,
+      dpi: dpi,
+      isActive: true,
+      onChanged: (newDpi) => setState(() => dpi = newDpi),
+      onSelectActive: () {},
+    ),
+  );
+}
+
+@Preview(name: 'DPI Stage Editor (Inactive)')
+Widget dpiStageEditorInactivePreview() {
+  var dpi = 800;
+  return StatefulBuilder(
+    builder: (context, setState) => DpiStageEditor(
+      stage: 1,
+      dpi: dpi,
+      isActive: false,
+      onChanged: (newDpi) => setState(() => dpi = newDpi),
+      onSelectActive: () {},
+    ),
+  );
 }

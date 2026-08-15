@@ -332,14 +332,10 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.mouse, color: Colors.white),
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: Image.asset('assets/icon.png'),
           ),
           const SizedBox(width: 14),
           Column(

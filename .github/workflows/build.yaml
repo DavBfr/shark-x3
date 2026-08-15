@@ -80,7 +80,7 @@ jobs:
         if: matrix.platform == 'macos' && inputs.package_artifacts
         run: |
           ditto -c -k --sequesterRsrc --keepParent \
-            build/macos/Build/Products/Release/shark_x3.app \
+            build/macos/Build/Products/Release/*.app \
             shark_x3-${{ inputs.version }}-macos-arm64.zip
 
       - name: Upload artifacts

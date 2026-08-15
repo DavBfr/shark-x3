@@ -603,9 +603,9 @@ present in the "3 → double click" capture):
 When a remapped button is pressed, the firmware replays one or more **output
 HID reports** (not the config interface). Confirmed so far:
 
-| action         | output reports                         | meaning                              |
-| -------------- | -------------------------------------- | ------------------------------------ |
-| browser home   | `02 23 02` then `02 00 00`             | Consumer usage `0x0223` (AC Home), press + release |
+| action       | output reports             | meaning                                            |
+| ------------ | -------------------------- | -------------------------------------------------- |
+| browser home | `02 23 02` then `02 00 00` | Consumer usage `0x0223` (AC Home), press + release |
 
 So "browser home" is a momentary press of the HID **Consumer → Home** key
 (report ID `0x02`, usage `0x0223`, little-endian `23 02`), released with an

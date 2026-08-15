@@ -66,3 +66,41 @@ config interface. The local `hid/` package was extended with:
 
 Rebuild the plugin's macOS pod if the deployment-target warning appears after
 updating `hid/macos/hid.podspec` (target was raised from 10.11 to 10.13).
+
+## Development & releases
+
+### CI/CD
+
+The project is built and released automatically through GitHub Actions
+(`.github/workflows/`):
+
+1. **Pull request** — every PR (including dependency bumps from
+   [Renovate](renovate.json)) runs `ci.yml`: `flutter analyze`, `flutter test`,
+   and a compile check of the app on all three desktop platforms. Branch
+   protection on `main` requires these checks to pass before a merge.
+2. **Merge → release** — merging to `main` triggers `release.yml`, which builds
+   unsigned release bundles for Linux, Windows and macOS (arm64) and publishes
+   them as a GitHub Release.
+
+Releases are tagged **`v<N>`**, where `<N>` is the GitHub Actions run number
+(monotonically increasing) — there is no semantic versioning, and the version
+in `pubspec.yaml` is left untouched.
+
+### Release artifacts
+
+| Platform | Archive | Runtime notes |
+| --- | --- | --- |
+| Linux (x64) | `shark_x3-<N>-linux-x64.tar.gz` | needs `libhidapi0` (`sudo apt install libhidapi0`) |
+| Windows (x64) | `shark_x3-<N>-windows-x64.zip` | `hidapi.dll` bundled automatically |
+| macOS (arm64) | `shark_x3-<N>-macos-arm64.zip` | unsigned — right-click → Open, or `xattr -cr shark_x3.app` |
+
+The macOS build is **unsigned and not notarized**, so Gatekeeper will warn on
+first launch. The app still runs; use the Linux or Windows build where a
+platform limitation applies.
+
+### Renovate
+
+Dependency updates are handled by [Renovate](renovate.json): it opens PRs for
+`pub` dependencies and GitHub Actions updates, and auto-merges them once CI
+passes. Each merge to `main` then produces a new `v<N>` release. Install the
+Renovate GitHub App on the repository to enable it.

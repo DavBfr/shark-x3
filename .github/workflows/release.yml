@@ -1,0 +1,82 @@
+name: Release
+
+# Runs on every push to main (e.g. a merged PR) and on manual dispatch.
+# Builds unsigned release archives for Linux/Windows/macOS-arm64 and publishes
+# a GitHub Release tagged v<N>, where <N> is the GitHub Actions run number
+# (monotonically increasing, shared by every job in this run).
+#
+# The tag/release is created via the GitHub API, so no commit is pushed back
+# to the repo and the run never re-triggers itself.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yaml
+    with:
+      version: ${{ github.run_number }}
+      package_artifacts: true
+
+  release:
+    name: Create release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Build release body
+        shell: bash
+        run: |
+          {
+            echo "## Automated build #${{ github.run_number }}"
+            echo
+            echo "Commits since the previous release:"
+            echo
+            prev="$(git describe --tags --match 'v*' --abbrev=0 HEAD^ 2>/dev/null || true)"
+            if [ -n "$prev" ]; then
+              git log --oneline --no-decorate "$prev"..HEAD
+            else
+              git log --oneline --no-decorate
+            fi
+          } > release_body.md
+
+      - name: Check whether tag already exists
+        id: tag
+        shell: bash
+        run: |
+          if git rev-parse -q --verify "refs/tags/v${{ github.run_number }}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub release
+        if: steps.tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: shark_x3 v${{ github.run_number }}
+          body_path: release_body.md
+          files: artifacts/*
+          fail_on_unmatched_files: false

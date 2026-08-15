@@ -7,9 +7,12 @@ on any setting for more detail).
 
 ## Features
 
-* **Connect** — finds the mouse (VID `0x1d57` / PID `0xfa61`) and opens the
-  configuration interface (System Control collection, usage `0x01/0x80`) *by
-  path*, which is the only way the firmware accepts config writes.
+* **Connect** — finds the mouse or its 2.4G wireless dongle (VID `0x1d57`,
+  PIDs `0xfa61` wired / `0xfa60` wireless) and opens the configuration
+  interface (System Control collection, usage `0x01/0x80`) *by path*, which is
+  the only way the firmware accepts config writes. It auto-connects on launch
+  (wired first, then the dongle) and falls back across devices if one can't be
+  opened.
 * **Sensitivity (DPI)** — 6 stages with the factory defaults and LED colors:
   `800 red · 1600 green (default active) · 2400 blue · 3200 cyan · 5000 yellow
   · 26000 purple`. Each stage has an active selector, a slider (50–26000, 50
@@ -95,8 +98,11 @@ in `pubspec.yaml` is left untouched.
 | macOS (arm64) | `shark_x3-<N>-macos-arm64.zip` | unsigned — right-click → Open, or `xattr -cr shark_x3.app` |
 
 The macOS build is **unsigned and not notarized**, so Gatekeeper will warn on
-first launch. The app still runs; use the Linux or Windows build where a
-platform limitation applies.
+first launch. The app still runs. Note: on macOS the **wired** mouse is held
+exclusively by the system and can't be opened, but the **2.4G wireless
+receiver** is not — connect via the dongle (verified end-to-end: config
+writes succeed on macOS through the dongle). Use the Linux or Windows build
+for the wired mouse.
 
 ### Renovate
 

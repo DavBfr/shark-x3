@@ -17,7 +17,13 @@ import 'package:hid/hid.dart' as hid;
 import 'x3_protocol.dart';
 
 const int x3VendorId = 0x1d57;
-const int x3ProductId = 0xfa61;
+
+/// Supported product IDs: `0xfa61` (wired USB mouse) and `0xfa60` (2.4G
+/// wireless dongle). Both use the same config protocol.
+const Set<int> x3ProductIds = {0xfa61, 0xfa60};
+
+bool _isX3(int vendorId, int productId) =>
+    vendorId == x3VendorId && x3ProductIds.contains(productId);
 
 /// Public info about one of the mouse's HID interfaces.
 class X3DeviceInfo {
@@ -48,12 +54,20 @@ class X3FindResult {
   const X3FindResult({
     required this.found,
     this.config,
+    this.configs = const [],
     this.other = const [],
     this.message = '',
   });
 
   final bool found;
+
+  /// The preferred config interface (the first of [configs]).
   final X3DeviceInfo? config;
+
+  /// Config interfaces in priority order (wired before wireless); [connect]
+  /// tries each until one opens.
+  final List<X3DeviceInfo> configs;
+
   final List<X3DeviceInfo> other;
   final String message;
 }
@@ -115,7 +129,7 @@ class X3DeviceService {
       );
     }
     final matches = devices
-        .where((d) => d.vendorId == x3VendorId && d.productId == x3ProductId)
+        .where((d) => _isX3(d.vendorId, d.productId))
         .toList();
     if (matches.isEmpty) {
       return const X3FindResult(
@@ -124,16 +138,30 @@ class X3DeviceService {
             'No ATTACK SHARK X3 mouse found. Plug it in (or pair it) and try again.',
       );
     }
-    final infos = matches.map(_toInfo).toList();
-    final cfg =
-        _firstWhereOrNull(
-          infos,
-          (i) => i.usagePage == 0x01 && i.usage == 0x80,
-        ) ??
-        _firstWhereOrNull(infos, (i) => i.path.contains('mi_02')) ??
-        _firstWhereOrNull(infos, (i) => i.interfaceNumber == 2) ??
-        _firstWhereOrNull(infos, (i) => i.path.isNotEmpty);
-    if (cfg == null) {
+    // Prefer the wired mouse (0xfa61) over the 2.4G wireless dongle (0xfa60).
+    final ordered = [
+      ...matches.where((d) => d.productId == 0xfa61),
+      ...matches.where((d) => d.productId == 0xfa60),
+    ];
+    final infos = ordered.map(_toInfo).toList();
+    // Config candidates in priority order (dedup by path): the System Control
+    // collection first, then the Windows mi_02 marker, then interface 2, then
+    // any usable path. connect() tries each in order.
+    final configs = <X3DeviceInfo>[];
+    final seen = <String>{};
+    void addCandidates(Iterable<X3DeviceInfo> items) {
+      for (final i in items) {
+        if (i.path.isNotEmpty && seen.add(i.path)) {
+          configs.add(i);
+        }
+      }
+    }
+
+    addCandidates(infos.where((i) => i.usagePage == 0x01 && i.usage == 0x80));
+    addCandidates(infos.where((i) => i.path.contains('mi_02')));
+    addCandidates(infos.where((i) => i.interfaceNumber == 2));
+    addCandidates(infos.where((i) => i.path.isNotEmpty));
+    if (configs.isEmpty) {
       return X3FindResult(
         found: false,
         other: infos,
@@ -142,7 +170,12 @@ class X3DeviceService {
             'interface. Try unplugging and replugging it.',
       );
     }
-    return X3FindResult(found: true, config: cfg, other: infos);
+    return X3FindResult(
+      found: true,
+      config: configs.first,
+      configs: configs,
+      other: infos,
+    );
   }
 
   /// Connect to the configuration interface and keep it open.
@@ -165,20 +198,14 @@ class X3DeviceService {
     }
     final match =
         _firstWhereOrNull(devices, (d) => d.path == cfg.path) ??
-        _firstWhereOrNull(
-          devices,
-          (d) => d.vendorId == x3VendorId && d.productId == x3ProductId,
-        );
+        _firstWhereOrNull(devices, (d) => _isX3(d.vendorId, d.productId));
     if (match == null) return 'Could not reopen the mouse to configure it.';
     final opened = await match.openPath(cfg.path);
     if (!opened) {
       final detail = match.lastError;
-      final hint = Platform.isMacOS
-          ? ' macOS is using this mouse as the system pointer and does not '
-                'let other apps open it — run this app on Windows or Linux '
-                'to configure the mouse.'
-          : ' It may be in use — close other programs that talk to the mouse '
-                'and try again.';
+      final hint =
+          ' It may be in use — close other programs that talk to the mouse '
+          'and try again.';
       return 'Could not open the mouse’s configuration interface'
           '${detail != null && detail.isNotEmpty ? ' — $detail' : ''}.$hint';
     }

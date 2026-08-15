@@ -39,9 +39,10 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
     if (!mounted) return;
     setState(() {
       _profile = profile;
-      _statusMessage =
-          'Plug in your mouse with a cable and press “Connect mouse”.';
+      _statusMessage = 'Looking for your mouse…';
     });
+    // Auto-connect on startup: wired USB first, then the 2.4G dongle.
+    await _connect(fromStartup: true);
   }
 
   void _updateProfile(X3Profile next) {
@@ -60,7 +61,7 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
 
   // ---- Connection -------------------------------------------------------
 
-  Future<void> _connect() async {
+  Future<void> _connect({bool fromStartup = false}) async {
     setState(() => _busy = true);
     final message = await _service.connect();
     final connected = _service.isConnected;
@@ -68,7 +69,12 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
     setState(() {
       _busy = false;
       _connected = connected;
-      _statusMessage = message;
+      _statusMessage = connected
+          ? message
+          : (fromStartup
+                ? 'Couldn’t find the mouse. Plug in the wired mouse or the '
+                      'wireless dongle, then press “Connect mouse”.'
+                : message);
     });
   }
 
@@ -202,7 +208,7 @@ class _X3SettingsPageState extends State<X3SettingsPage> {
                           busy: _busy,
                           productName: _service.config?.productName ?? '',
                           statusMessage: _statusMessage,
-                          onConnect: _connect,
+                          onConnect: () => _connect(),
                           onDisconnect: _disconnect,
                         ),
                         _dpiCard(context),

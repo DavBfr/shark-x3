@@ -37,9 +37,17 @@ import argparse
 import sys
 
 VID = 0x1D57
-PID = 0xFA61
+PIDS = (0xFA61, 0xFA60)  # wired USB mouse, 2.4G wireless dongle
 CONFIG_INTF = 2          # the configuration interface from the Linux enumeration
 REPORT_ID = 0x04         # config feature report
+
+
+def enumerate_x3(hid):
+    """Enumerate the X3 across all supported product IDs."""
+    devs = []
+    for pid in PIDS:
+        devs.extend(hid.enumerate(VID, pid))
+    return devs
 
 # Baseline report-0x04 payload (report ID stripped) = row 2 of the differential
 # capture table: mode 0, DPI 750/1250/2500/5000/10000/20000, polling 125,
@@ -255,10 +263,10 @@ def find_config(devices):
 
 
 def cmd_enumerate(hid):
-    devs = hid.enumerate(VID, PID)
+    devs = enumerate_x3(hid)
     if not devs:
-        sys.exit("No ATTACK SHARK X3 (1d57:fa61) found. Check it is plugged in / permissions.")
-    print(f"Found {len(devs)} interface(s) for 1d57:fa61:")
+        sys.exit("No ATTACK SHARK X3 (1d57:fa61 / fa60) found. Check it is plugged in / permissions.")
+    print(f"Found {len(devs)} interface(s) for 1d57:fa61/fa60:")
     for i, d in enumerate(devs):
         mark = "  <-- CONFIG" if (d.get("interface_number") == CONFIG_INTF or
                                   (d.get("usage_page") == 0x01 and d.get("usage") == 0x80)) else ""
@@ -272,7 +280,7 @@ def cmd_enumerate(hid):
 
 
 def cmd_read(hid, report_id):
-    devs = hid.enumerate(VID, PID)
+    devs = enumerate_x3(hid)
     cfg = find_config(devs)
     if not cfg:
         sys.exit("Config interface not found in enumeration.")
@@ -293,7 +301,7 @@ def cmd_send(hid, report_id, payload):
         # user included the report id as first byte; strip it
         payload = payload[1:]
         print(f"(stripped leading report id byte)")
-    devs = hid.enumerate(VID, PID)
+    devs = enumerate_x3(hid)
     cfg = find_config(devs)
     if not cfg:
         sys.exit("Config interface not found in enumeration.")

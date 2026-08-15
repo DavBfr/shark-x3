@@ -42,6 +42,50 @@ product: USB Gaming Mouse
 
 This is an ATTACK SHARK X3 / Beken-family device despite the generic Xenta/Beken USB identification.
 
+## 2.4G wireless receiver (`1d57:fa60`)
+
+The mouse also ships with a 2.4G wireless receiver that uses the **same
+protocol** (same Beken chipset, identical HID interface layout). macOS
+identifies it as:
+
+```text
+2.4G Wireless Device:
+  USB Vendor ID:   0x1d57
+  USB Product ID:  0xfa60
+  USB Product Version: 0x0113
+```
+
+`hidapi` enumeration of the receiver (`hid_enumerate(0x1d57, 0)`):
+
+```text
+PID fa60 | usage 0001/0006 | intf=0   (keyboard)
+PID fa60 | usage 0001/0080 | intf=2   <-- config interface (System Control)
+PID fa60 | usage 000c/0001 | intf=2
+PID fa60 | usage 000a/0000 | intf=2
+PID fa60 | usage 000b/0000 | intf=2
+PID fa60 | usage 0001/0002 | intf=1   (mouse)
+PID fa60 | usage 0001/0001 | intf=1
+PID fa60 | usage 0001/0006 | intf=3   (keyboard)
+```
+
+This is byte-for-byte the same structure as the wired mouse: the configuration
+interface is interface 2, usage page `0x01` / usage `0x80`, and reports
+`0x04`/`0x05`/`0x06` (offsets, encodings, checksums) work exactly as documented
+below. The Flutter app (`x3_device.dart` `_isX3`) and `x3ctl.py`
+(`enumerate_x3`) both accept PIDs `0xfa61` (wired) and `0xfa60` (wireless).
+
+**macOS difference vs the wired mouse (verified live, 2026-08-15):**
+
+* The **wired** mouse (`0xfa61`) is seized by macOS: opening the config
+  interface fails with `kIOReturnExclusiveAccess`, and the input interfaces
+  with `kIOReturnNotPermitted` — no user app can open it on macOS.
+* The **wireless receiver** (`0xfa60`) is *not* seized on its config
+  interface: interface 2 (usage `0x01/0x80`) opens fine on macOS; only the
+  input interfaces are blocked (`kIOReturnNotPermitted`).
+* End-to-end verified: connecting to the receiver on macOS and sending report
+  `0x04` (default profile) + `0x06` (polling) + `0x05` (power) all succeed.
+  Feature reads still time out on this device (expected).
+
 ## HID interfaces
 
 Python `hid.enumerate()` produced:

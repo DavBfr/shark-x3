@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Shark X3 configuration tool icon">
+  <defs>
+    <!-- Background: deep ocean blue fading to teal -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D2A4A"/>
+      <stop offset="0.5" stop-color="#0A4C6E"/>
+      <stop offset="1" stop-color="#0C7B8E"/>
+    </linearGradient>
+    <!-- Soft radial glow near the top -->
+    <radialGradient id="glow" cx="0.5" cy="0.32" r="0.62">
+      <stop offset="0" stop-color="#4FD8D8" stop-opacity="0.32"/>
+      <stop offset="0.55" stop-color="#1B7FA0" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#0D2A4A" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Shark body: crisp white to pale ice-cyan -->
+    <linearGradient id="shark" x1="0" y1="0" x2="0.15" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#C9EBF2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square app tile -->
+  <rect x="32" y="32" width="960" height="960" rx="224" fill="url(#bg)"/>
+  <rect x="32" y="32" width="960" height="960" rx="224" fill="url(#glow)"/>
+
+  <!-- Settings dial: rings + tick marks behind the shark -->
+  <g stroke="#8FE3E6" fill="none" opacity="0.18">
+    <circle cx="512" cy="560" r="316" stroke-width="6"/>
+    <circle cx="512" cy="560" r="240" stroke-width="6"/>
+  </g>
+  <g stroke="#A8ECEF" fill="none" opacity="0.30" stroke-width="10" stroke-linecap="round">
+    <line x1="828.0" y1="560.0" x2="858.0" y2="560.0"/>
+    <line x1="817.2" y1="641.8" x2="830.8" y2="645.4"/>
+    <line x1="785.7" y1="718.0" x2="797.8" y2="725.0"/>
+    <line x1="735.4" y1="783.4" x2="748.2" y2="796.2"/>
+    <line x1="670.0" y1="833.7" x2="677.0" y2="845.8"/>
+    <line x1="593.8" y1="865.2" x2="597.4" y2="878.8"/>
+    <line x1="512.0" y1="876.0" x2="512.0" y2="906.0"/>
+    <line x1="430.2" y1="865.2" x2="426.6" y2="878.8"/>
+    <line x1="354.0" y1="833.7" x2="347.0" y2="845.8"/>
+    <line x1="288.6" y1="783.4" x2="275.8" y2="796.2"/>
+    <line x1="238.3" y1="718.0" x2="226.2" y2="725.0"/>
+    <line x1="206.8" y1="641.8" x2="193.2" y2="645.4"/>
+    <line x1="196.0" y1="560.0" x2="166.0" y2="560.0"/>
+    <line x1="206.8" y1="478.2" x2="193.2" y2="474.6"/>
+    <line x1="238.3" y1="402.0" x2="226.2" y2="395.0"/>
+    <line x1="288.6" y1="336.6" x2="275.8" y2="323.8"/>
+    <line x1="354.0" y1="286.3" x2="347.0" y2="274.2"/>
+    <line x1="430.2" y1="254.8" x2="426.6" y2="241.2"/>
+    <line x1="512.0" y1="244.0" x2="512.0" y2="214.0"/>
+    <line x1="593.8" y1="254.8" x2="597.4" y2="241.2"/>
+    <line x1="670.0" y1="286.3" x2="677.0" y2="274.2"/>
+    <line x1="735.4" y1="336.6" x2="748.2" y2="323.8"/>
+    <line x1="785.7" y1="402.0" x2="797.8" y2="395.0"/>
+    <line x1="817.2" y1="478.2" x2="830.8" y2="474.6"/>
+  </g>
+
+  <!-- Original stylized shark (drawn from scratch, facing right) -->
+  <g>
+    <!-- Pectoral fin (behind the body) -->
+    <path d="M 614 654 C 600 684, 586 704, 566 712 C 592 700, 612 682, 622 660 Z" fill="#7FC7D8"/>
+    <!-- Body silhouette -->
+    <path d="M 778 576
+             C 770 528, 730 506, 668 506
+             C 614 506, 574 512, 548 518
+             C 566 482, 556 440, 542 408
+             C 526 448, 502 474, 488 518
+             C 438 514, 384 508, 340 504
+             C 268 500, 208 470, 178 440
+             C 196 486, 212 520, 258 550
+             C 236 580, 216 614, 208 642
+             C 236 618, 264 598, 302 584
+             C 372 588, 462 658, 552 662
+             C 600 665, 650 668, 700 660
+             C 735 652, 765 622, 778 576 Z"
+          fill="url(#shark)"/>
+    <!-- Gill slits -->
+    <path d="M 600 590 q 14 8 4 18 M 612 600 q 14 8 4 18 M 624 610 q 14 8 4 18"
+          stroke="#0E2A47" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.55"/>
+    <!-- Eye -->
+    <circle cx="692" cy="566" r="13" fill="#0E2A47"/>
+    <circle cx="697" cy="561" r="4.5" fill="#FFFFFF" opacity="0.85"/>
+  </g>
+</svg>
